@@ -603,6 +603,7 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
             });
             const retryData = await retryRes.json();
             const retryText = (retryData.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+            console.log("Retry raw response:", retryText.substring(0, 500));
             const retryMatch = retryText.match(/\{[\s\S]*\}/);
             if (retryMatch) {
               const retryParsed = JSON.parse(retryMatch[0]);
