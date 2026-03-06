@@ -186,6 +186,9 @@ function GolferRow({ golfer, isCut, isPenalty }) {
             </span>
           : <span style={{ color: "#555" }}>—</span>}
       </span>
+      <span style={{ fontSize: 10, minWidth: 24, textAlign: "right", fontFamily: "monospace", color: "#555", flexShrink: 0 }}>
+        {!isCut && !isPenalty ? (golfer.thru || "—") : ""}
+      </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
         {!isCut && <ScoreDisplay relative={golfer.relative} />}
       </span>
@@ -200,6 +203,7 @@ function GolferRowHeader() {
       <span style={{ fontSize: 10, color: "#444", minWidth: 20, flexShrink: 0 }}></span>
       <span style={{ flex: 1, fontSize: 10, color: "#444" }}>PLAYER</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 32, textAlign: "right", flexShrink: 0 }}>TODAY</span>
+      <span style={{ fontSize: 10, color: "#444", minWidth: 24, textAlign: "right", flexShrink: 0 }}>THRU</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 36, textAlign: "right", flexShrink: 0 }}>SCORE</span>
     </div>
   );
@@ -489,9 +493,6 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
 
-  const roundBaselines = useRef({});  // { golferName: score } loaded from Supabase
-  const currentRound = useRef(1);
-  const baselinesLoaded = useRef(false);
   const expandedTeams = useRef(new Set());
   const [, forceUpdate] = useState(0);
   const toggleTeam = (name) => {
@@ -510,19 +511,6 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
 
   useEffect(() => { loadPicks(); }, [loadPicks]);
 
-  // Load persisted round baselines from Supabase on mount
-  useEffect(() => {
-    if (!tournament || baselinesLoaded.current) return;
-    (async () => {
-      const { data } = await supabase.from("tournaments").select("round_baselines").eq("id", tournament).single();
-      if (data?.round_baselines) {
-        roundBaselines.current = data.round_baselines.scores || {};
-        currentRound.current = data.round_baselines.round || 1;
-      }
-      baselinesLoaded.current = true;
-    })();
-  }, [tournament]);
-
   const savePicks = async (newPicks) => {
     await supabase.from("picks").delete().eq("tournament", tournament).eq("group_name", group);
     for (const p of newPicks) {
@@ -539,144 +527,22 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
       const response = await fetch("/api/scores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 16000,
-          system: `You are a golf scoring assistant with access to live PGA Tour data.
-Return ONLY a JSON object (no markdown, no explanation) with this exact structure:
-{
-  "round": <current round number 1-4>,
-  "cutHappened": <true if the cut has been made, false if still in rounds 1-2>,
-  "worstMadeCutScore": <the highest (worst) score relative to par among ALL players who made the cut on the PGA Tour leaderboard, or null if cut hasn't happened>,
-  "golfers": {
-    "<golfer name>": {
-      "relative": <cumulative tournament score relative to par as integer across all rounds, 0=even, negative=under par, or null if not started>,
-      "today": <score relative to par for today's round only as integer, 0=even, negative=under par, or null if not yet started today>,
-      "position": <leaderboard position string like "T4" or null>,
-      "missedCut": <true if player missed the cut, false otherwise>
-    }
-  }
-}
-IMPORTANT: You MUST return every single golfer listed in the request. Never omit a golfer - use null values if data is unavailable. The "thru" and "today" fields refer to the current/most recent round only.`,
-          messages: [{ role: "user", content: `Search the web for the current live leaderboard for the ${tournamentName}. Find the current scores for each of these ${allGolfers.length} golfers: ${allGolfers.join(", ")}. For each golfer I need: (1) "relative": their TOTAL tournament score relative to par as an integer e.g. -9, (2) "today": their score in the current round only as an integer e.g. -3, (3) "position": leaderboard position e.g. "T4", (4) "missedCut": false for now. You MUST include all ${allGolfers.length} golfers. Return ONLY the JSON object, no other text.` }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }]
-        })
+        body: JSON.stringify({ golferNames: allGolfers, tournamentName })
       });
       const data = await response.json();
-      console.log("API response type:", data.type, "stop_reason:", data.stop_reason, "content blocks:", data.content?.map(b => b.type));
-      if (data.type === "error") throw new Error(`API error: ${data.error?.message}`);
-      // Collect all text across all text blocks (model sometimes splits across blocks)
-      const allText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+      if (data.error) throw new Error(data.error);
 
-      if (!allText) throw new Error(`No text block in response. Stop reason: ${data.stop_reason}. Blocks: ${JSON.stringify(data.content?.map(b => b.type))}`);
-      const raw = allText;
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error(`No JSON found in response text: ${raw.slice(0, 200)}`);
-      let parsed;
-      try { parsed = JSON.parse(jsonMatch[0]); }
-      catch (parseErr) { throw new Error(`JSON parse failed: ${parseErr.message}. Raw: ${jsonMatch[0].slice(0, 200)}`); }
-      console.log("API golfer keys:", Object.keys(parsed.golfers || {}));
-      console.log("Straka data:", JSON.stringify(parsed.golfers["Sepp Straka"]));
-      console.log("Day data:", JSON.stringify(parsed.golfers["Jason Day"]));
-      if (true) {
-        console.log("API golfers sample:", JSON.stringify(Object.entries(parsed.golfers || {}).slice(0, 3)));
-        const newRound = parsed.round || 1;
-        const golfers = parsed.golfers || {};
-
-        // Retry for any golfers with null data
-        const missingGolfers = Object.entries(golfers)
-          .filter(([, d]) => d.relative === null)
-          .map(([name]) => name);
-        if (missingGolfers.length > 0) {
-          console.log("Retrying for missing golfers:", missingGolfers);
-          try {
-            const retryRes = await fetch("/api/scores", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
-                max_tokens: 4000,
-                system: `You are a golf scoring assistant. Return ONLY a JSON object with this structure: {"golfers": {"<name>": {"relative": <int or null>, "today": <int or null>, "position": "<string or null>", "missedCut": false}}}`,
-                messages: [{ role: "user", content: `Search for current scores at the ${tournamentName} for ONLY these golfers: ${missingGolfers.join(", ")}. Return their total score relative to par and today's round score.` }],
-                tools: [{ type: "web_search_20250305", name: "web_search" }]
-              })
-            });
-            const retryData = await retryRes.json();
-            const retryText = (retryData.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-            console.log("Retry raw response:", retryText.substring(0, 500));
-            const retryMatch = retryText.match(/\{[\s\S]*\}/);
-            if (retryMatch) {
-              const retryParsed = JSON.parse(retryMatch[0]);
-              Object.entries(retryParsed.golfers || {}).forEach(([name, data]) => {
-                if (golfers[name] && data.relative !== null) {
-                  golfers[name] = { ...golfers[name], ...data };
-                }
-              });
-            }
-          } catch (retryErr) {
-            console.warn("Retry failed:", retryErr.message);
-          }
-        }
-
-        // If round has advanced, save current scores as the new baseline
-        if (newRound > currentRound.current) {
-          const newBaselines = {};
-          Object.entries(golfers).forEach(([name, data]) => {
-            if (data.relative !== null && data.relative !== undefined) {
-              newBaselines[name] = data.relative;
-            }
-          });
-          roundBaselines.current = { ...roundBaselines.current, ...newBaselines };
-          currentRound.current = newRound;
-          // Persist to Supabase so baselines survive page reloads
-          supabase.from("tournaments").update({
-            round_baselines: { round: newRound - 1, scores: roundBaselines.current }
-          }).eq("id", tournament).then(({ error }) => {
-            if (error) console.warn("Failed to save baselines:", error.message);
-            else console.log("Saved round baselines for round", newRound - 1);
-          });
-        }
-
-        // Compute today from relative - baseline if API didn't provide it
-        const enriched = {};
-
-        console.log("roundBaselines at compute time:", JSON.stringify(roundBaselines.current));
-        console.log("currentRound at compute time:", currentRound.current);
-        console.log("newRound:", newRound);
-        console.log("Sample golfer relative:", Object.entries(golfers)[0]);
-        
-        Object.entries(golfers).forEach(([name, data]) => {
-          let today = data.today;
-          if ((today === null || today === undefined) && data.relative !== null && data.relative !== undefined) {
-            const baseline = roundBaselines.current[name];
-            if (baseline !== undefined) {
-              today = data.relative - baseline;
-            } else if (newRound === 1) {
-              today = data.relative; // R1: today IS the total
-            }
-          }
-          enriched[name] = { ...data, today };
-        });
-
-        setLiveScores(enriched);
-        setCutHappened(parsed.cutHappened || false);
-        setWorstMadeCut(parsed.worstMadeCutScore ?? null);
-        setLastUpdated(new Date());
-      }
+      setLiveScores(data.golfers || {});
+      setCutHappened(data.cutHappened || false);
+      setWorstMadeCut(data.worstMadeCutScore ?? null);
+      setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     setLoading(false);
   }, [picks, tournamentName]);
 
   useEffect(() => {
     if (picks.length > 0) {
-      const startFetching = () => {
-        if (!baselinesLoaded.current) {
-          setTimeout(startFetching, 100);
-          return;
-        }
-        fetchScores();
-      };
-      startFetching();
+      fetchScores();
       const interval = setInterval(fetchScores, 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
@@ -685,7 +551,7 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false };
+      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false };
     });
     let total = 0;
     if (!cutHappened) {

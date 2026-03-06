@@ -1,16 +1,170 @@
 export async function POST(request) {
-  const body = await request.json();
+  const { golferNames, tournamentName } = await request.json();
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(body),
+  const espnRes = await fetch(
+    "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
+    { next: { revalidate: 0 } }
+  );
+  if (!espnRes.ok) {
+    return Response.json(
+      { error: `ESPN API returned ${espnRes.status}` },
+      { status: 502 }
+    );
+  }
+
+  const espn = await espnRes.json();
+
+  // Find the matching event (or use the first/only one)
+  const events = espn.events || [];
+  const event =
+    events.find((e) =>
+      e.name?.toLowerCase().includes(tournamentName?.toLowerCase())
+    ) || events[0];
+
+  if (!event) {
+    return Response.json({ error: "No active tournament found on ESPN" }, { status: 404 });
+  }
+
+  const competition = event.competitions?.[0];
+  if (!competition) {
+    return Response.json({ error: "No competition data found" }, { status: 404 });
+  }
+
+  const competitors = competition.competitors || [];
+
+  // Determine current round from the competition status
+  const statusDetail = competition.status?.type?.detail || "";
+  const roundMatch = statusDetail.match(/Round (\d)/i);
+  let round = roundMatch ? parseInt(roundMatch[1]) : 1;
+
+  // Also check period from status
+  if (competition.status?.period) {
+    round = Math.max(round, competition.status.period);
+  }
+
+  // Build a name-lookup map: normalize names for fuzzy matching
+  const normalize = (n) =>
+    n?.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+
+  const competitorMap = new Map();
+  competitors.forEach((c) => {
+    const athlete = c.athlete || {};
+    const fullName = athlete.displayName || athlete.shortName || "";
+    competitorMap.set(normalize(fullName), { competitor: c, fullName });
+    // Also index by last name for partial matches
+    const lastName = fullName.split(" ").pop();
+    if (lastName && !competitorMap.has(normalize(lastName))) {
+      competitorMap.set(normalize(lastName), { competitor: c, fullName });
+    }
   });
 
-  const data = await response.json();
-  return Response.json(data);
+  // Determine positions with tie detection
+  // ESPN competitors are sorted by score, so we can derive position
+  const sortedCompetitors = [...competitors].sort((a, b) => {
+    const aScore = parseScore(a.score);
+    const bScore = parseScore(b.score);
+    if (aScore === null && bScore === null) return 0;
+    if (aScore === null) return 1;
+    if (bScore === null) return -1;
+    return aScore - bScore;
+  });
+
+  const positionMap = new Map();
+  sortedCompetitors.forEach((c, idx) => {
+    const score = parseScore(c.score);
+    // Count how many have the same score for tie detection
+    let pos = idx + 1;
+    if (score !== null) {
+      const firstWithScore = sortedCompetitors.findIndex(
+        (x) => parseScore(x.score) === score
+      );
+      pos = firstWithScore + 1;
+      const countWithScore = sortedCompetitors.filter(
+        (x) => parseScore(x.score) === score
+      ).length;
+      const name = c.athlete?.displayName || c.athlete?.shortName || "";
+      positionMap.set(normalize(name), countWithScore > 1 ? `T${pos}` : `${pos}`);
+    }
+  });
+
+  // Determine cut status
+  let cutHappened = false;
+  let worstMadeCutScore = null;
+
+  // Check if any competitor has status indicating they missed the cut
+  const hasCutIndicators = competitors.some((c) => {
+    const status = c.status?.type?.name?.toLowerCase() || "";
+    return status === "cut" || status === "missed cut";
+  });
+
+  if (hasCutIndicators || round >= 3) {
+    cutHappened = true;
+    // Find the worst score among those who made the cut
+    const madeCutScores = competitors
+      .filter((c) => {
+        const status = c.status?.type?.name?.toLowerCase() || "";
+        return status !== "cut" && status !== "missed cut" && status !== "wd" && status !== "dq";
+      })
+      .map((c) => parseScore(c.score))
+      .filter((s) => s !== null);
+    if (madeCutScores.length > 0) {
+      worstMadeCutScore = Math.max(...madeCutScores);
+    }
+  }
+
+  // Build golfer results
+  const golfers = {};
+  for (const name of golferNames) {
+    const norm = normalize(name);
+    const match = competitorMap.get(norm);
+
+    if (!match) {
+      golfers[name] = { relative: null, today: null, thru: null, position: null, missedCut: false };
+      continue;
+    }
+
+    const { competitor: c } = match;
+    const relative = parseScore(c.score);
+
+    // Compute "today" from the current round's linescore only
+    const linescores = c.linescores || [];
+    let today = null;
+    const currentRoundScore = linescores.find((ls) => ls.period === round);
+    if (currentRoundScore?.displayValue != null && currentRoundScore.displayValue !== "") {
+      today = parseScore(String(currentRoundScore.displayValue));
+    }
+
+    // Compute "thru" from hole count in the current round
+    let thru = null;
+    if (currentRoundScore) {
+      const holesPlayed = currentRoundScore.linescores?.length || 0;
+      if (holesPlayed === 18) thru = "F";
+      else if (holesPlayed > 0) thru = String(holesPlayed);
+      // 0 holes = not started, leave as null
+    }
+
+    // Missed cut detection
+    const status = c.status?.type?.name?.toLowerCase() || "";
+    const missedCut = status === "cut" || status === "missed cut";
+
+    const position = positionMap.get(norm) || c.status?.position?.displayName || null;
+
+    golfers[name] = { relative, today, thru, position, missedCut };
+  }
+
+  return Response.json({
+    round,
+    cutHappened,
+    worstMadeCutScore,
+    golfers,
+    tournamentName: event.name || tournamentName,
+  });
+}
+
+function parseScore(scoreStr) {
+  if (scoreStr === undefined || scoreStr === null || scoreStr === "") return null;
+  const s = String(scoreStr).trim();
+  if (s === "E" || s === "even" || s === "Even") return 0;
+  const num = parseInt(s, 10);
+  return isNaN(num) ? null : num;
 }
