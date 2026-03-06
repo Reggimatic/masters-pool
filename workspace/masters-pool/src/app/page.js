@@ -541,7 +541,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 4000,
+          max_tokens: 16000,
           system: `You are a golf scoring assistant with access to live PGA Tour data.
 Return ONLY a JSON object (no markdown, no explanation) with this exact structure:
 {
@@ -563,12 +563,18 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         })
       });
       const data = await response.json();
-      const textBlock = data.content?.find(b => b.type === "text");
-      if (textBlock) {
-        const raw = textBlock.text;
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No JSON found in response");
-        const parsed = JSON.parse(jsonMatch[0]);
+      console.log("API response type:", data.type, "stop_reason:", data.stop_reason, "content blocks:", data.content?.map(b => b.type));
+      if (data.type === "error") throw new Error(`API error: ${data.error?.message}`);
+      // Collect all text across all text blocks (model sometimes splits across blocks)
+      const allText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+      if (!allText) throw new Error(`No text block in response. Stop reason: ${data.stop_reason}. Blocks: ${JSON.stringify(data.content?.map(b => b.type))}`);
+      const raw = allText;
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error(`No JSON found in response text: ${raw.slice(0, 200)}`);
+      let parsed;
+      try { parsed = JSON.parse(jsonMatch[0]); }
+      catch (parseErr) { throw new Error(`JSON parse failed: ${parseErr.message}. Raw: ${jsonMatch[0].slice(0, 200)}`); }
+      if (true) {
         console.log("API golfers sample:", JSON.stringify(Object.entries(parsed.golfers || {}).slice(0, 3)));
         const newRound = parsed.round || 1;
         const golfers = parsed.golfers || {};
@@ -612,7 +618,7 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         setWorstMadeCut(parsed.worstMadeCutScore ?? null);
         setLastUpdated(new Date());
       }
-    } catch (e) { setError("Could not fetch live scores. Will retry shortly."); }
+    } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     setLoading(false);
   }, [picks, tournamentName]);
 
