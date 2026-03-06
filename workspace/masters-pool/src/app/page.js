@@ -495,6 +495,9 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
 
+  const roundBaselines = useRef({});  // { golferName: score } loaded from Supabase
+  const currentRound = useRef(1);
+  const baselinesLoaded = useRef(false);
   const expandedTeams = useRef(new Set());
   const [, forceUpdate] = useState(0);
   const toggleTeam = (name) => {
@@ -512,6 +515,19 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
   }, [tournament, group]);
 
   useEffect(() => { loadPicks(); }, [loadPicks]);
+
+  // Load persisted round baselines from Supabase on mount
+  useEffect(() => {
+    if (!tournament || baselinesLoaded.current) return;
+    (async () => {
+      const { data } = await supabase.from("tournaments").select("round_baselines").eq("id", tournament).single();
+      if (data?.round_baselines) {
+        roundBaselines.current = data.round_baselines.scores || {};
+        currentRound.current = data.round_baselines.round || 1;
+      }
+      baselinesLoaded.current = true;
+    })();
+  }, [tournament]);
 
   const savePicks = async (newPicks) => {
     await supabase.from("picks").delete().eq("tournament", tournament).eq("group_name", group);
@@ -561,9 +577,44 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         if (!jsonMatch) throw new Error("No JSON found in response");
         const parsed = JSON.parse(jsonMatch[0]);
         console.log("API golfers sample:", JSON.stringify(Object.entries(parsed.golfers || {}).slice(0, 3)));
-        console.log("API golfer keys:", Object.keys(parsed.golfers || {}));
-        console.log("API full raw text:", raw.slice(0, 2000));
-        setLiveScores(parsed.golfers || {});
+        const newRound = parsed.round || 1;
+        const golfers = parsed.golfers || {};
+
+        // If round has advanced, save current scores as the new baseline
+        if (newRound > currentRound.current) {
+          const newBaselines = {};
+          Object.entries(golfers).forEach(([name, data]) => {
+            if (data.relative !== null && data.relative !== undefined) {
+              newBaselines[name] = data.relative;
+            }
+          });
+          roundBaselines.current = { ...roundBaselines.current, ...newBaselines };
+          currentRound.current = newRound;
+          // Persist to Supabase so baselines survive page reloads
+          supabase.from("tournaments").update({
+            round_baselines: { round: newRound - 1, scores: roundBaselines.current }
+          }).eq("id", tournament).then(({ error }) => {
+            if (error) console.warn("Failed to save baselines:", error.message);
+            else console.log("Saved round baselines for round", newRound - 1);
+          });
+        }
+
+        // Compute today from relative - baseline if API didn't provide it
+        const enriched = {};
+        Object.entries(golfers).forEach(([name, data]) => {
+          let today = data.today;
+          if ((today === null || today === undefined) && data.relative !== null && data.relative !== undefined) {
+            const baseline = roundBaselines.current[name];
+            if (baseline !== undefined) {
+              today = data.relative - baseline;
+            } else if (newRound === 1) {
+              today = data.relative; // R1: today IS the total
+            }
+          }
+          enriched[name] = { ...data, today };
+        });
+
+        setLiveScores(enriched);
         setCutHappened(parsed.cutHappened || false);
         setWorstMadeCut(parsed.worstMadeCutScore ?? null);
         setLastUpdated(new Date());
