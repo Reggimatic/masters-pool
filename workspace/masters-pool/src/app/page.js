@@ -663,7 +663,14 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
 
   useEffect(() => {
     if (picks.length > 0) {
-      fetchScores();
+      const startFetching = () => {
+        if (!baselinesLoaded.current) {
+          setTimeout(startFetching, 100);
+          return;
+        }
+        fetchScores();
+      };
+      startFetching();
       const interval = setInterval(fetchScores, 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
