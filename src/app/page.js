@@ -41,11 +41,11 @@ function ScoreDisplay({ relative }) {
   return <span style={{ color, fontWeight: 600 }}>{label}</span>;
 }
 
-function GolferRow({ golfer, isCut }) {
+function GolferRow({ golfer, isCut, isPenalty }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 10,
-      opacity: isCut ? 0.38 : 1,
+      opacity: isCut ? 0.35 : 1,
       padding: "4px 0",
       borderBottom: "1px solid rgba(201,168,76,0.1)"
     }}>
@@ -54,36 +54,65 @@ function GolferRow({ golfer, isCut }) {
         fontFamily: "monospace",
         textDecoration: isCut ? "line-through" : "none"
       }}>
-        {golfer.position || "—"}
+        {isCut || isPenalty ? "—" : (golfer.position || "—")}
       </span>
       <span style={{
         flex: 1, fontSize: 13,
-        color: isCut ? "#888" : "#e8dfc4",
-        fontStyle: isCut ? "italic" : "normal",
+        color: isCut ? "#666" : isPenalty ? "#888" : "#e8dfc4",
+        fontStyle: (isCut || isPenalty) ? "italic" : "normal",
         letterSpacing: 0.2
       }}>
-        {golfer.name}
-        {isCut && <span style={{ fontSize: 10, marginLeft: 6, color: "#666" }}>(dropped)</span>}
+        {isPenalty ? "Penalty (missed cut)" : golfer.name}
+        {isCut && !isPenalty && <span style={{ fontSize: 10, marginLeft: 6, color: "#555" }}>(missed cut)</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right" }}>
-        <ScoreDisplay relative={golfer.relative} />
+        {isPenalty
+          ? <ScoreDisplay relative={golfer.relative} />
+          : isCut
+            ? <span style={{ color: "#555", fontSize: 11 }}>MC</span>
+            : <ScoreDisplay relative={golfer.relative} />
+        }
       </span>
     </div>
   );
 }
 
-function TeamCard({ team, rank }) {
-  const sorted = [...team.golfers].sort((a, b) => {
-    if (a.relative === null && b.relative === null) return 0;
-    if (a.relative === null) return 1;
-    if (b.relative === null) return -1;
-    return a.relative - b.relative;
-  });
+function TeamCard({ team, rank, cutHappened, worstMadeCut }) {
+  // Separate golfers into made cut vs missed cut
+  const madeCut = team.golfers.filter(g => !g.missedCut);
+  const missedCut = team.golfers.filter(g => g.missedCut);
 
-  const scoring = sorted.slice(0, 4);
-  const dropped = sorted.slice(4);
-  const allGolfers = [...scoring, ...dropped];
-  const total = scoring.reduce((sum, g) => sum + (g.relative ?? 0), 0);
+  let scoringGolfers = [];
+  let droppedGolfers = [];
+  let penaltySlots = 0;
+
+  if (!cutHappened) {
+    // Pre-cut: best 4 of 6, worst 2 dropped
+    const sorted = [...team.golfers].sort((a, b) => {
+      if (a.relative === null && b.relative === null) return 0;
+      if (a.relative === null) return 1;
+      if (b.relative === null) return -1;
+      return a.relative - b.relative;
+    });
+    scoringGolfers = sorted.slice(0, 4);
+    droppedGolfers = sorted.slice(4);
+  } else {
+    // Post-cut: best made-cut golfers score, fill gaps with penalty
+    const sortedMadeCut = [...madeCut].sort((a, b) => {
+      if (a.relative === null && b.relative === null) return 0;
+      if (a.relative === null) return 1;
+      if (b.relative === null) return -1;
+      return a.relative - b.relative;
+    });
+    scoringGolfers = sortedMadeCut.slice(0, 4);
+    penaltySlots = Math.max(0, 4 - scoringGolfers.length);
+    droppedGolfers = [...sortedMadeCut.slice(4), ...missedCut];
+  }
+
+  const scoringTotal = scoringGolfers.reduce((sum, g) => sum + (g.relative ?? 0), 0);
+  const penaltyTotal = penaltySlots * (worstMadeCut ?? 0);
+  const total = scoringTotal + penaltyTotal;
+
   const totalLabel = total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
   const totalColor = total < 0 ? "#e05252" : total > 0 ? "#aaa" : "#c9a84c";
   const medals = ["🥇", "🥈", "🥉"];
@@ -108,8 +137,19 @@ function TeamCard({ team, rank }) {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {allGolfers.map((g, i) => (
-          <GolferRow key={g.name} golfer={g} isCut={i >= 4} />
+        {scoringGolfers.map(g => (
+          <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} />
+        ))}
+        {Array.from({ length: penaltySlots }).map((_, i) => (
+          <GolferRow
+            key={`penalty-${i}`}
+            golfer={{ relative: worstMadeCut }}
+            isCut={false}
+            isPenalty={true}
+          />
+        ))}
+        {droppedGolfers.map(g => (
+          <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isPenalty={false} />
         ))}
       </div>
     </div>
@@ -118,7 +158,8 @@ function TeamCard({ team, rank }) {
 
 function AdminPanel({ picks, onSave, onClose }) {
   const [teams, setTeams] = useState(
-    picks.length > 0 ? picks.map(p => ({ name: p.name, golfers: [...p.golfers, ...Array(6).fill("")].slice(0, 6) }))
+    picks.length > 0
+      ? picks.map(p => ({ name: p.name, golfers: [...p.golfers, ...Array(6).fill("")].slice(0, 6) }))
       : [{ name: "", golfers: ["", "", "", "", "", ""] }]
   );
   const [saving, setSaving] = useState(false);
@@ -259,6 +300,8 @@ function PasswordModal({ onSuccess, onClose }) {
 export default function MastersPool() {
   const [picks, setPicks] = useState([]);
   const [liveScores, setLiveScores] = useState({});
+  const [cutHappened, setCutHappened] = useState(false);
+  const [worstMadeCut, setWorstMadeCut] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -294,12 +337,25 @@ export default function MastersPool() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
+          max_tokens: 1500,
           system: `You are a golf scoring assistant with access to live PGA Tour data.
-Return ONLY a JSON object (no markdown, no explanation) with golfer names as keys.
-Each value must have: { "relative": <score relative to par as integer, 0=even, negative=under par, or null if not started>, "position": <leaderboard position string like "T4" or null> }
-If a golfer has withdrawn or missed cut, set relative to 20.`,
-          messages: [{ role: "user", content: `Get current Masters Tournament 2025 scores for: ${allGolfers.join(", ")}. Return only the JSON object.` }],
+Return ONLY a JSON object (no markdown, no explanation) with this exact structure:
+{
+  "round": <current round number 1-4>,
+  "cutHappened": <true if the cut has been made, false if still in rounds 1-2>,
+  "worstMadeCutScore": <the highest (worst) score relative to par among ALL players who made the cut on the PGA Tour leaderboard, or null if cut hasn't happened>,
+  "golfers": {
+    "<golfer name>": {
+      "relative": <score relative to par as integer, 0=even, negative=under par, or null if not started>,
+      "position": <leaderboard position string like "T4" or null>,
+      "missedCut": <true if player missed the cut, false otherwise>
+    }
+  }
+}`,
+          messages: [{
+            role: "user",
+            content: `Get current Masters Tournament 2025 scores for these golfers: ${allGolfers.join(", ")}. Also determine if the cut has happened and the worst score among all players who made the cut. Return only the JSON object.`
+          }],
           tools: [{ type: "web_search_20250305", name: "web_search" }]
         })
       });
@@ -307,7 +363,10 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
       const textBlock = data.content?.find(b => b.type === "text");
       if (textBlock) {
         const clean = textBlock.text.replace(/```json|```/g, "").trim();
-        setLiveScores(JSON.parse(clean));
+        const parsed = JSON.parse(clean);
+        setLiveScores(parsed.golfers || {});
+        setCutHappened(parsed.cutHappened || false);
+        setWorstMadeCut(parsed.worstMadeCutScore ?? null);
         setLastUpdated(new Date());
       }
     } catch (e) {
@@ -324,19 +383,38 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
     }
   }, [picks, fetchScores]);
 
+  // Build ranked teams with cut-aware scoring
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(name => ({
       name,
       relative: liveScores[name]?.relative ?? null,
-      position: liveScores[name]?.position ?? null
+      position: liveScores[name]?.position ?? null,
+      missedCut: liveScores[name]?.missedCut ?? false,
     }));
-    const sorted = [...withScores].sort((a, b) => {
-      if (a.relative === null && b.relative === null) return 0;
-      if (a.relative === null) return 1;
-      if (b.relative === null) return -1;
-      return a.relative - b.relative;
-    });
-    const total = sorted.slice(0, 4).reduce((sum, g) => sum + (g.relative ?? 0), 0);
+
+    let total = 0;
+    if (!cutHappened) {
+      const sorted = [...withScores].sort((a, b) => {
+        if (a.relative === null && b.relative === null) return 0;
+        if (a.relative === null) return 1;
+        if (b.relative === null) return -1;
+        return a.relative - b.relative;
+      });
+      total = sorted.slice(0, 4).reduce((sum, g) => sum + (g.relative ?? 0), 0);
+    } else {
+      const madeCut = withScores.filter(g => !g.missedCut);
+      const sorted = [...madeCut].sort((a, b) => {
+        if (a.relative === null && b.relative === null) return 0;
+        if (a.relative === null) return 1;
+        if (b.relative === null) return -1;
+        return a.relative - b.relative;
+      });
+      const scoring = sorted.slice(0, 4);
+      const penaltySlots = Math.max(0, 4 - scoring.length);
+      total = scoring.reduce((sum, g) => sum + (g.relative ?? 0), 0)
+        + penaltySlots * (worstMadeCut ?? 0);
+    }
+
     return { ...team, golfers: withScores, total };
   }).sort((a, b) => a.total - b.total);
 
@@ -387,7 +465,12 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
         <h1 style={{ fontFamily: "Georgia, serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#e8dfc4", margin: 0, fontWeight: 400, letterSpacing: 1 }}>
           Office Pool Leaderboard
         </h1>
-        <div style={{ marginTop: 8, fontSize: 13 }}>
+        {cutHappened && worstMadeCut !== null && (
+          <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
+            Cut made · Penalty score: <span style={{ color: "#888" }}>{worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut}</span>
+          </div>
+        )}
+        <div style={{ marginTop: 6, fontSize: 13 }}>
           {loading ? (
             <span style={{ color: GOLD }}>⟳ Updating scores...</span>
           ) : lastUpdated ? (
@@ -422,14 +505,22 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} />
+                <TeamCard
+                  team={team}
+                  rank={i + 1}
+                  cutHappened={cutHappened}
+                  worstMadeCut={worstMadeCut}
+                />
               </div>
             ))}
           </div>
         )}
 
         <div style={{ marginTop: 32, textAlign: "center", fontSize: 12, color: "#444", marginBottom: 16 }}>
-          Top 4 of 6 golfers score · Worst 2 dropped automatically · Scores update every 5 minutes
+          {cutHappened
+            ? "Post-cut: best 4 survivors score · missed cut spots filled with penalty score"
+            : "Top 4 of 6 golfers score · Worst 2 dropped automatically · Scores update every 5 minutes"
+          }
         </div>
 
         <div style={{ textAlign: "center" }}>
