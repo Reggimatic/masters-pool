@@ -518,7 +518,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
     setLoading(true); setError(null);
     try {
       const allGolfers = [...new Set(picks.flatMap(p => p.golfers.map(g => g.name || g)))];
-      const response = await fetch("/api/scores", {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -546,8 +546,10 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
       const data = await response.json();
       const textBlock = data.content?.find(b => b.type === "text");
       if (textBlock) {
-        const clean = textBlock.text.replace(/```json|```/g, "").trim();
-        const parsed = JSON.parse(clean);
+        const raw = textBlock.text;
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON found in response");
+        const parsed = JSON.parse(jsonMatch[0]);
         setLiveScores(parsed.golfers || {});
         setCutHappened(parsed.cutHappened || false);
         setWorstMadeCut(parsed.worstMadeCutScore ?? null);
