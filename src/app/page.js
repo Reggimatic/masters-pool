@@ -179,6 +179,13 @@ function GolferRow({ golfer, isCut, isPenalty }) {
         {isPenalty ? "Penalty (missed cut)" : golfer.name}
         {isCut && !isPenalty && <span style={{ fontSize: 10, marginLeft: 6, color: "#555" }}>(missed cut)</span>}
       </span>
+      <span style={{ fontSize: 11, minWidth: 32, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
+        {!isCut && !isPenalty && golfer.today !== null && golfer.today !== undefined
+          ? <span style={{ color: golfer.today < 0 ? "#e05252" : golfer.today > 0 ? "#aaa" : "#c9a84c", fontWeight: 600 }}>
+              {golfer.today === 0 ? "E" : golfer.today > 0 ? `+${golfer.today}` : `${golfer.today}`}
+            </span>
+          : <span style={{ color: "#555" }}>—</span>}
+      </span>
       <span style={{ fontSize: 11, color: "#555", minWidth: 28, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
         {isCut ? <span style={{ color: "#555", fontSize: 11 }}>MC</span>
           : isPenalty ? ""
@@ -197,6 +204,7 @@ function GolferRowHeader() {
       <span style={{ fontSize: 10, color: "#444", minWidth: 20, textAlign: "right", flexShrink: 0 }}>POS</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 20, flexShrink: 0 }}></span>
       <span style={{ flex: 1, fontSize: 10, color: "#444" }}>PLAYER</span>
+      <span style={{ fontSize: 10, color: "#444", minWidth: 32, textAlign: "right", flexShrink: 0 }}>TODAY</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 28, textAlign: "right", flexShrink: 0 }}>THRU</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 36, textAlign: "right", flexShrink: 0 }}>SCORE</span>
     </div>
@@ -523,7 +531,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
+          max_tokens: 2500,
           system: `You are a golf scoring assistant with access to live PGA Tour data.
 Return ONLY a JSON object (no markdown, no explanation) with this exact structure:
 {
@@ -532,14 +540,16 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
   "worstMadeCutScore": <the highest (worst) score relative to par among ALL players who made the cut on the PGA Tour leaderboard, or null if cut hasn't happened>,
   "golfers": {
     "<golfer name>": {
-      "relative": <score relative to par as integer, 0=even, negative=under par, or null if not started>,
+      "relative": <cumulative tournament score relative to par as integer across all rounds, 0=even, negative=under par, or null if not started>,
+      "today": <score relative to par for today's round only as integer, 0=even, negative=under par, or null if not yet started today>,
       "position": <leaderboard position string like "T4" or null>,
       "missedCut": <true if player missed the cut, false otherwise>,
-      "thru": <hole number they have played through as a string e.g. "12", or "F" if finished, or null if not started>
+      "thru": <holes completed in TODAY's round only as a string e.g. "12", or "F" if finished today's round, or null if not yet started today>
     }
   }
-}`,
-          messages: [{ role: "user", content: `Get current ${tournamentName} scores for these golfers: ${allGolfers.join(", ")}. Include what hole each player is through in the current round. Also determine if the cut has happened and the worst score among all players who made the cut. Return only the JSON object.` }],
+}
+IMPORTANT: You MUST return every single golfer listed in the request. Never omit a golfer - use null values if data is unavailable. The "thru" and "today" fields refer to the current/most recent round only.`,
+          messages: [{ role: "user", content: `Get current ${tournamentName} scores for these ${allGolfers.length} golfers: ${allGolfers.join(", ")}. Search carefully for EVERY player. For each: cumulative tournament score, today's round score, holes completed today (or "F" if done), position, and missed cut status. Also find the cut line info. You must include all ${allGolfers.length} golfers in your response. Return only the JSON.` }],
           tools: [{ type: "web_search_20250305", name: "web_search" }]
         })
       });
@@ -570,7 +580,7 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false, thru: liveScores[name]?.thru ?? null };
+      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false, thru: liveScores[name]?.thru ?? null };
     });
     let total = 0;
     if (!cutHappened) {
