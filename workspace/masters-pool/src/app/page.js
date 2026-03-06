@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 
 const ADMIN_PASSWORD = "augusta2025";
@@ -316,6 +316,33 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
     return { ...team, golfers: withScores, total };
   }).sort((a, b) => a.total - b.total);
 
+  // FLIP animation
+  const cardRefs = useRef({});
+  const prevPositions = useRef({});
+
+  useEffect(() => {
+    const newPositions = {};
+    rankedTeams.forEach(team => {
+      const el = cardRefs.current[team.name];
+      if (el) newPositions[team.name] = el.getBoundingClientRect().top;
+    });
+    rankedTeams.forEach(team => {
+      const el = cardRefs.current[team.name];
+      const prev = prevPositions.current[team.name];
+      const next = newPositions[team.name];
+      if (el && prev !== undefined && Math.abs(prev - next) > 2) {
+        const delta = prev - next;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${delta}px)`;
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+          el.style.transform = "translateY(0)";
+        });
+      }
+    });
+    prevPositions.current = newPositions;
+  });
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -369,7 +396,9 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {rankedTeams.map((team, i) => (
-              <TeamCard key={team.name} team={team} rank={i + 1} />
+              <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
+                <TeamCard team={team} rank={i + 1} />
+              </div>
             ))}
           </div>
         )}
