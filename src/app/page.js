@@ -639,6 +639,11 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
 
         // Compute today from relative - baseline if API didn't provide it
         const enriched = {};
+
+        console.log("roundBaselines at compute time:", JSON.stringify(roundBaselines.current));
+        console.log("currentRound at compute time:", currentRound.current);
+        console.log("newRound:", newRound);
+        
         Object.entries(golfers).forEach(([name, data]) => {
           let today = data.today;
           if ((today === null || today === undefined) && data.relative !== null && data.relative !== undefined) {
