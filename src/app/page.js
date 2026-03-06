@@ -576,6 +576,8 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
       try { parsed = JSON.parse(jsonMatch[0]); }
       catch (parseErr) { throw new Error(`JSON parse failed: ${parseErr.message}. Raw: ${jsonMatch[0].slice(0, 200)}`); }
       console.log("API golfer keys:", Object.keys(parsed.golfers || {}));
+      console.log("Straka data:", JSON.stringify(parsed.golfers["Sepp Straka"]));
+      console.log("Day data:", JSON.stringify(parsed.golfers["Jason Day"]));
       if (true) {
         console.log("API golfers sample:", JSON.stringify(Object.entries(parsed.golfers || {}).slice(0, 3)));
         const newRound = parsed.round || 1;
