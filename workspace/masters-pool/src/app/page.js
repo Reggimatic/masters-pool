@@ -560,6 +560,8 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("No JSON found in response");
         const parsed = JSON.parse(jsonMatch[0]);
+        console.log("API golfers sample:", JSON.stringify(Object.entries(parsed.golfers || {}).slice(0, 3)));
+        console.log("API golfer keys:", Object.keys(parsed.golfers || {}));
         setLiveScores(parsed.golfers || {});
         setCutHappened(parsed.cutHappened || false);
         setWorstMadeCut(parsed.worstMadeCutScore ?? null);
