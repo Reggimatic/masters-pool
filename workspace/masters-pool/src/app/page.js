@@ -6,6 +6,34 @@ import { supabase } from "@/lib/supabase";
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
 
+function LastUpdatedTimer({ lastUpdated }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    setElapsed(0);
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [lastUpdated]);
+
+  const format = (secs) => {
+    if (secs < 60) return "just now";
+    const mins = Math.floor(secs / 60);
+    return `${mins}m ago`;
+  };
+
+  const nextRefresh = Math.max(0, 5 - Math.floor(elapsed / 60));
+
+  return (
+    <span>
+      <span style={{ color: "#888" }}>Updated {format(elapsed)}</span>
+      <span style={{ color: "#555", marginLeft: 10 }}>·</span>
+      <span style={{ color: "#555", marginLeft: 10 }}>Next refresh in ~{nextRefresh}m</span>
+    </span>
+  );
+}
+
 function ScoreDisplay({ relative }) {
   if (relative === null || relative === undefined) return <span style={{ color: "#888" }}>—</span>;
   const color = relative < 0 ? "#e05252" : relative > 0 ? "#aaa" : "#c9a84c";
@@ -238,7 +266,6 @@ export default function MastersPool() {
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load picks from Supabase
   const loadPicks = useCallback(async () => {
     const { data, error } = await supabase.from("picks").select("*");
     if (!error && data) {
@@ -248,9 +275,7 @@ export default function MastersPool() {
 
   useEffect(() => { loadPicks(); }, [loadPicks]);
 
-  // Save picks to Supabase
   const savePicks = async (newPicks) => {
-    // Clear existing and re-insert
     await supabase.from("picks").delete().neq("id", 0);
     for (const p of newPicks) {
       await supabase.from("picks").insert({ participant: p.name, golfers: p.golfers });
@@ -258,7 +283,6 @@ export default function MastersPool() {
     await loadPicks();
   };
 
-  // Fetch live scores via Claude API
   const fetchScores = useCallback(async () => {
     if (picks.length === 0) return;
     setLoading(true);
@@ -363,19 +387,20 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
         <h1 style={{ fontFamily: "Georgia, serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#e8dfc4", margin: 0, fontWeight: 400, letterSpacing: 1 }}>
           Office Pool Leaderboard
         </h1>
-        <div style={{ marginTop: 8, fontSize: 13, color: "#666" }}>
-          {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting scores..."}
-          {loading && <span style={{ marginLeft: 8, color: GOLD }}>⟳ Updating...</span>}
+        <div style={{ marginTop: 8, fontSize: 13 }}>
+          {loading ? (
+            <span style={{ color: GOLD }}>⟳ Updating scores...</span>
+          ) : lastUpdated ? (
+            <LastUpdatedTimer lastUpdated={lastUpdated} />
+          ) : (
+            <span style={{ color: "#666" }}>Awaiting scores...</span>
+          )}
         </div>
-        <div style={{ position: "absolute", top: 24, right: 20, display: "flex", gap: 8 }}>
+        <div style={{ position: "absolute", top: 24, right: 20 }}>
           <button onClick={fetchScores} disabled={loading} style={{
             background: "none", border: `1px solid rgba(201,168,76,0.4)`, borderRadius: 8,
             color: GOLD, padding: "6px 14px", fontSize: 12, cursor: "pointer"
           }}>{loading ? "..." : "↻ Refresh"}</button>
-          <button onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{
-            background: "none", border: `1px solid rgba(201,168,76,0.4)`, borderRadius: 8,
-            color: GOLD, padding: "6px 14px", fontSize: 12, cursor: "pointer"
-          }}>Admin</button>
         </div>
       </div>
 
@@ -391,7 +416,7 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: 56, marginBottom: 16 }}>⛳</div>
             <p style={{ color: "#666", fontSize: 16 }}>No picks entered yet.</p>
-            <p style={{ color: "#555", fontSize: 14 }}>Click <strong style={{ color: GOLD }}>Admin</strong> to add participants and their golfer picks.</p>
+            <p style={{ color: "#555", fontSize: 14 }}>Click <strong style={{ color: GOLD }}>Admin</strong> below to add participants and their golfer picks.</p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -403,8 +428,15 @@ If a golfer has withdrawn or missed cut, set relative to 20.`,
           </div>
         )}
 
-        <div style={{ marginTop: 32, textAlign: "center", fontSize: 12, color: "#444" }}>
+        <div style={{ marginTop: 32, textAlign: "center", fontSize: 12, color: "#444", marginBottom: 16 }}>
           Top 4 of 6 golfers score · Worst 2 dropped automatically · Scores update every 5 minutes
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <button onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{
+            background: "none", border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 8,
+            color: "#555", padding: "8px 20px", fontSize: 12, cursor: "pointer", letterSpacing: 1
+          }}>⚙ Admin</button>
         </div>
       </div>
 
