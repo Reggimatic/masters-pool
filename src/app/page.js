@@ -583,6 +583,40 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         const newRound = parsed.round || 1;
         const golfers = parsed.golfers || {};
 
+        // Retry for any golfers with null data
+        const missingGolfers = Object.entries(golfers)
+          .filter(([, d]) => d.relative === null)
+          .map(([name]) => name);
+        if (missingGolfers.length > 0) {
+          console.log("Retrying for missing golfers:", missingGolfers);
+          try {
+            const retryRes = await fetch("/api/scores", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 4000,
+                system: `You are a golf scoring assistant. Return ONLY a JSON object with this structure: {"golfers": {"<name>": {"relative": <int or null>, "today": <int or null>, "position": "<string or null>", "missedCut": false}}}`,
+                messages: [{ role: "user", content: `Search for current scores at the ${tournamentName} for ONLY these golfers: ${missingGolfers.join(", ")}. Return their total score relative to par and today's round score.` }],
+                tools: [{ type: "web_search_20250305", name: "web_search" }]
+              })
+            });
+            const retryData = await retryRes.json();
+            const retryText = (retryData.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+            const retryMatch = retryText.match(/\{[\s\S]*\}/);
+            if (retryMatch) {
+              const retryParsed = JSON.parse(retryMatch[0]);
+              Object.entries(retryParsed.golfers || {}).forEach(([name, data]) => {
+                if (golfers[name] && data.relative !== null) {
+                  golfers[name] = { ...golfers[name], ...data };
+                }
+              });
+            }
+          } catch (retryErr) {
+            console.warn("Retry failed:", retryErr.message);
+          }
+        }
+
         // If round has advanced, save current scores as the new baseline
         if (newRound > currentRound.current) {
           const newBaselines = {};
