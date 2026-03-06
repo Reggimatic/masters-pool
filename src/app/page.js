@@ -42,37 +42,79 @@ function ScoreDisplay({ relative }) {
 }
 
 function GolferRow({ golfer, isCut, isPenalty }) {
+  const thruLabel = isPenalty || isCut ? "" : (golfer.thru ?? "—");
+
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 10,
+      display: "flex", alignItems: "center", gap: 8,
       opacity: isCut ? 0.35 : 1,
       padding: "4px 0",
       borderBottom: "1px solid rgba(201,168,76,0.08)"
     }}>
+      {/* Position */}
       <span style={{
-        fontSize: 11, color: GOLD, minWidth: 18, textAlign: "right",
+        fontSize: 11, color: GOLD, minWidth: 20, textAlign: "right",
         fontFamily: "monospace",
-        textDecoration: isCut ? "line-through" : "none"
+        textDecoration: isCut ? "line-through" : "none",
+        flexShrink: 0,
       }}>
         {isCut || isPenalty ? "—" : (golfer.position || "—")}
       </span>
+
+      {/* Name */}
       <span style={{
         flex: 1, fontSize: 13,
         color: isCut ? "#666" : isPenalty ? "#888" : "#e8dfc4",
         fontStyle: (isCut || isPenalty) ? "italic" : "normal",
-        letterSpacing: 0.2
+        letterSpacing: 0.2,
+        minWidth: 0,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
       }}>
         {isPenalty ? "Penalty (missed cut)" : golfer.name}
         {isCut && !isPenalty && <span style={{ fontSize: 10, marginLeft: 6, color: "#555" }}>(missed cut)</span>}
       </span>
-      <span style={{ fontSize: 13, minWidth: 36, textAlign: "right" }}>
+
+      {/* Thru */}
+      <span style={{
+        fontSize: 11, color: "#555", minWidth: 28, textAlign: "right",
+        fontFamily: "monospace", flexShrink: 0,
+      }}>
+        {isCut
+          ? <span style={{ color: "#555", fontSize: 11 }}>MC</span>
+          : isPenalty
+            ? ""
+            : (thruLabel === "F" ? <span style={{ color: "#666" }}>F</span> : thruLabel)
+        }
+      </span>
+
+      {/* Score */}
+      <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
         {isPenalty
           ? <ScoreDisplay relative={golfer.relative} />
           : isCut
-            ? <span style={{ color: "#555", fontSize: 11 }}>MC</span>
+            ? null
             : <ScoreDisplay relative={golfer.relative} />
         }
       </span>
+    </div>
+  );
+}
+
+// Column headers for expanded view
+function GolferRowHeader() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: "6px 0 4px",
+      borderBottom: "1px solid rgba(201,168,76,0.15)",
+      marginBottom: 2,
+    }}>
+      <span style={{ fontSize: 10, color: "#444", minWidth: 20, textAlign: "right", flexShrink: 0 }}>POS</span>
+      <span style={{ flex: 1, fontSize: 10, color: "#444" }}>PLAYER</span>
+      <span style={{ fontSize: 10, color: "#444", minWidth: 28, textAlign: "right", flexShrink: 0 }}>THRU</span>
+      <span style={{ fontSize: 10, color: "#444", minWidth: 36, textAlign: "right", flexShrink: 0 }}>SCORE</span>
     </div>
   );
 }
@@ -114,7 +156,6 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
   const totalColor = total < 0 ? "#e05252" : total > 0 ? "#aaa" : "#c9a84c";
   const medals = ["🥇", "🥈", "🥉"];
 
-  // Build a compact summary line for collapsed view
   const topNames = scoringGolfers.slice(0, 4).map(g => g.name.split(" ").pop()).join(", ");
 
   return (
@@ -126,7 +167,6 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
       overflow: "hidden",
       transition: "box-shadow 0.3s",
     }}>
-      {/* Header row — always visible, clickable to toggle */}
       <div
         onClick={onToggle}
         style={{
@@ -161,14 +201,14 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
         </div>
       </div>
 
-      {/* Expandable golfer list */}
       <div style={{
         maxHeight: expanded ? "600px" : "0px",
         overflow: "hidden",
         transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
       }}>
         <div style={{ padding: "0 20px 16px", borderTop: "1px solid rgba(201,168,76,0.1)" }}>
-          <div style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ paddingTop: 6 }}>
+            <GolferRowHeader />
             {scoringGolfers.map(g => (
               <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} />
             ))}
@@ -343,8 +383,6 @@ export default function MastersPool() {
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
 
-  // expandedTeams is a Set of team names that are currently expanded
-  // Stored in a ref so score refreshes don't reset it
   const expandedTeams = useRef(new Set());
   const [, forceUpdate] = useState(0);
 
@@ -396,13 +434,14 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
     "<golfer name>": {
       "relative": <score relative to par as integer, 0=even, negative=under par, or null if not started>,
       "position": <leaderboard position string like "T4" or null>,
-      "missedCut": <true if player missed the cut, false otherwise>
+      "missedCut": <true if player missed the cut, false otherwise>,
+      "thru": <hole number they have played through as a string e.g. "12", or "F" if finished, or null if not started>
     }
   }
 }`,
           messages: [{
             role: "user",
-            content: `Get current Masters Tournament 2025 scores for these golfers: ${allGolfers.join(", ")}. Also determine if the cut has happened and the worst score among all players who made the cut. Return only the JSON object.`
+            content: `Get current Masters Tournament 2025 scores for these golfers: ${allGolfers.join(", ")}. Include what hole each player is through in the current round. Also determine if the cut has happened and the worst score among all players who made the cut. Return only the JSON object.`
           }],
           tools: [{ type: "web_search_20250305", name: "web_search" }]
         })
@@ -437,6 +476,7 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
       relative: liveScores[name]?.relative ?? null,
       position: liveScores[name]?.position ?? null,
       missedCut: liveScores[name]?.missedCut ?? false,
+      thru: liveScores[name]?.thru ?? null,
     }));
 
     let total = 0;
