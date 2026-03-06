@@ -643,6 +643,7 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         console.log("roundBaselines at compute time:", JSON.stringify(roundBaselines.current));
         console.log("currentRound at compute time:", currentRound.current);
         console.log("newRound:", newRound);
+        console.log("Sample golfer relative:", Object.entries(golfers)[0]);
         
         Object.entries(golfers).forEach(([name, data]) => {
           let today = data.today;
