@@ -186,11 +186,6 @@ function GolferRow({ golfer, isCut, isPenalty }) {
             </span>
           : <span style={{ color: "#555" }}>—</span>}
       </span>
-      <span style={{ fontSize: 11, color: "#555", minWidth: 28, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
-        {isCut ? <span style={{ color: "#555", fontSize: 11 }}>MC</span>
-          : isPenalty ? ""
-          : (golfer.thru === "F" ? <span style={{ color: "#666" }}>F</span> : (golfer.thru ?? "—"))}
-      </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
         {!isCut && <ScoreDisplay relative={golfer.relative} />}
       </span>
@@ -205,7 +200,6 @@ function GolferRowHeader() {
       <span style={{ fontSize: 10, color: "#444", minWidth: 20, flexShrink: 0 }}></span>
       <span style={{ flex: 1, fontSize: 10, color: "#444" }}>PLAYER</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 32, textAlign: "right", flexShrink: 0 }}>TODAY</span>
-      <span style={{ fontSize: 10, color: "#444", minWidth: 28, textAlign: "right", flexShrink: 0 }}>THRU</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 36, textAlign: "right", flexShrink: 0 }}>SCORE</span>
     </div>
   );
@@ -541,13 +535,13 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
     if (picks.length === 0) return;
     setLoading(true); setError(null);
     try {
-      const allGolfers = [...new Set(picks.flatMap(p => p.golfers.map(g => g.name || g)))];
+      const allGolfers = [...new Set(picks.flatMap(p => p.golfers.map(g => g.name || g)))].sort();
       const response = await fetch("/api/scores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 2500,
+          max_tokens: 4000,
           system: `You are a golf scoring assistant with access to live PGA Tour data.
 Return ONLY a JSON object (no markdown, no explanation) with this exact structure:
 {
@@ -559,8 +553,7 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
       "relative": <cumulative tournament score relative to par as integer across all rounds, 0=even, negative=under par, or null if not started>,
       "today": <score relative to par for today's round only as integer, 0=even, negative=under par, or null if not yet started today>,
       "position": <leaderboard position string like "T4" or null>,
-      "missedCut": <true if player missed the cut, false otherwise>,
-      "thru": <holes completed in TODAY's round only as a string e.g. "12", or "F" if finished today's round, or null if not yet started today>
+      "missedCut": <true if player missed the cut, false otherwise>
     }
   }
 }
@@ -634,7 +627,7 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false, thru: liveScores[name]?.thru ?? null };
+      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false };
     });
     let total = 0;
     if (!cutHappened) {
