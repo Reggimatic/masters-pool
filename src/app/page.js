@@ -6,6 +6,16 @@ import { supabase } from "@/lib/supabase";
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
 
+// Convert 2-letter country code to flag emoji
+function countryFlag(code) {
+  if (!code) return "";
+  const upper = code.toUpperCase().trim();
+  if (upper.length !== 2) return "";
+  return String.fromCodePoint(
+    ...upper.split("").map(c => 0x1F1E6 + c.charCodeAt(0) - 65)
+  );
+}
+
 function LastUpdatedTimer({ lastUpdated }) {
   const [elapsed, setElapsed] = useState(0);
 
@@ -42,7 +52,7 @@ function ScoreDisplay({ relative }) {
 }
 
 function GolferRow({ golfer, isCut, isPenalty }) {
-  const thruLabel = isPenalty || isCut ? "" : (golfer.thru ?? "—");
+  const flag = isPenalty || isCut ? "" : countryFlag(golfer.country);
 
   return (
     <div style={{
@@ -59,6 +69,11 @@ function GolferRow({ golfer, isCut, isPenalty }) {
         flexShrink: 0,
       }}>
         {isCut || isPenalty ? "—" : (golfer.position || "—")}
+      </span>
+
+      {/* Flag */}
+      <span style={{ fontSize: 14, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>
+        {flag}
       </span>
 
       {/* Name */}
@@ -83,9 +98,10 @@ function GolferRow({ golfer, isCut, isPenalty }) {
       }}>
         {isCut
           ? <span style={{ color: "#555", fontSize: 11 }}>MC</span>
-          : isPenalty
-            ? ""
-            : (thruLabel === "F" ? <span style={{ color: "#666" }}>F</span> : thruLabel)
+          : isPenalty ? ""
+          : (golfer.thru === "F"
+              ? <span style={{ color: "#666" }}>F</span>
+              : (golfer.thru ?? "—"))
         }
       </span>
 
@@ -93,16 +109,14 @@ function GolferRow({ golfer, isCut, isPenalty }) {
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
         {isPenalty
           ? <ScoreDisplay relative={golfer.relative} />
-          : isCut
-            ? null
-            : <ScoreDisplay relative={golfer.relative} />
+          : isCut ? null
+          : <ScoreDisplay relative={golfer.relative} />
         }
       </span>
     </div>
   );
 }
 
-// Column headers for expanded view
 function GolferRowHeader() {
   return (
     <div style={{
@@ -112,6 +126,7 @@ function GolferRowHeader() {
       marginBottom: 2,
     }}>
       <span style={{ fontSize: 10, color: "#444", minWidth: 20, textAlign: "right", flexShrink: 0 }}>POS</span>
+      <span style={{ fontSize: 10, color: "#444", minWidth: 20, flexShrink: 0 }}></span>
       <span style={{ flex: 1, fontSize: 10, color: "#444" }}>PLAYER</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 28, textAlign: "right", flexShrink: 0 }}>THRU</span>
       <span style={{ fontSize: 10, color: "#444", minWidth: 36, textAlign: "right", flexShrink: 0 }}>SCORE</span>
@@ -151,12 +166,14 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
   const scoringTotal = scoringGolfers.reduce((sum, g) => sum + (g.relative ?? 0), 0);
   const penaltyTotal = penaltySlots * (worstMadeCut ?? 0);
   const total = scoringTotal + penaltyTotal;
-
   const totalLabel = total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
   const totalColor = total < 0 ? "#e05252" : total > 0 ? "#aaa" : "#c9a84c";
   const medals = ["🥇", "🥈", "🥉"];
 
-  const topNames = scoringGolfers.slice(0, 4).map(g => g.name.split(" ").pop()).join(", ");
+  const topNames = scoringGolfers.slice(0, 4).map(g => {
+    const flag = countryFlag(g.country);
+    return `${flag} ${g.name.split(" ").pop()}`.trim();
+  }).join("  ");
 
   return (
     <div style={{
@@ -165,7 +182,6 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
       borderRadius: 12,
       boxShadow: rank === 1 ? `0 0 24px rgba(201,168,76,0.18)` : "0 2px 12px rgba(0,0,0,0.4)",
       overflow: "hidden",
-      transition: "box-shadow 0.3s",
     }}>
       <div
         onClick={onToggle}
@@ -183,7 +199,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
           </div>
           {!expanded && topNames && (
             <div style={{ fontSize: 11, color: "#666", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {topNames}{penaltySlots > 0 ? ` + ${penaltySlots} penalty` : ""}
+              {topNames}{penaltySlots > 0 ? `  + ${penaltySlots} penalty` : ""}
             </div>
           )}
         </div>
@@ -195,8 +211,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
             color: "#555", fontSize: 12,
             transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
             transition: "transform 0.25s",
-            display: "inline-block",
-            lineHeight: 1,
+            display: "inline-block", lineHeight: 1,
           }}>▼</span>
         </div>
       </div>
@@ -213,12 +228,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
               <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} />
             ))}
             {Array.from({ length: penaltySlots }).map((_, i) => (
-              <GolferRow
-                key={`penalty-${i}`}
-                golfer={{ relative: worstMadeCut }}
-                isCut={false}
-                isPenalty={true}
-              />
+              <GolferRow key={`penalty-${i}`} golfer={{ relative: worstMadeCut }} isCut={false} isPenalty={true} />
             ))}
             {droppedGolfers.map(g => (
               <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isPenalty={false} />
@@ -230,26 +240,39 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
   );
 }
 
+// Country code reference hint
+const COUNTRY_HINT = "2-letter code: US, GB, AU, IE, ZA, ES, JP, SE, NO, DE, CA, AR, KR...";
+
 function AdminPanel({ picks, onSave, onClose }) {
+  const emptyGolfer = { name: "", country: "" };
   const [teams, setTeams] = useState(
     picks.length > 0
-      ? picks.map(p => ({ name: p.name, golfers: [...p.golfers, ...Array(6).fill("")].slice(0, 6) }))
-      : [{ name: "", golfers: ["", "", "", "", "", ""] }]
+      ? picks.map(p => ({
+          name: p.name,
+          golfers: [...p.golfers.map(g => ({ name: g.name || g, country: g.country || "" })), ...Array(6).fill(null).map(() => ({ ...emptyGolfer }))].slice(0, 6)
+        }))
+      : [{ name: "", golfers: Array(6).fill(null).map(() => ({ ...emptyGolfer })) }]
   );
   const [saving, setSaving] = useState(false);
 
-  const addTeam = () => setTeams(t => [...t, { name: "", golfers: ["", "", "", "", "", ""] }]);
+  const addTeam = () => setTeams(t => [...t, { name: "", golfers: Array(6).fill(null).map(() => ({ ...emptyGolfer })) }]);
   const removeTeam = (i) => setTeams(t => t.filter((_, idx) => idx !== i));
-  const updateName = (i, val) => setTeams(t => t.map((team, idx) => idx === i ? { ...team, name: val } : team));
-  const updateGolfer = (ti, gi, val) => setTeams(t => t.map((team, idx) =>
-    idx === ti ? { ...team, golfers: team.golfers.map((g, j) => j === gi ? val : g) } : team
+  const updateTeamName = (i, val) => setTeams(t => t.map((team, idx) => idx === i ? { ...team, name: val } : team));
+  const updateGolferField = (ti, gi, field, val) => setTeams(t => t.map((team, idx) =>
+    idx === ti ? {
+      ...team,
+      golfers: team.golfers.map((g, j) => j === gi ? { ...g, [field]: val } : g)
+    } : team
   ));
 
   const handleSave = async () => {
     setSaving(true);
     const clean = teams.filter(t => t.name.trim()).map(t => ({
       name: t.name.trim(),
-      golfers: t.golfers.map(g => g.trim()).filter(Boolean)
+      golfers: t.golfers.filter(g => g.name.trim()).map(g => ({
+        name: g.name.trim(),
+        country: g.country.trim().toUpperCase()
+      }))
     }));
     await onSave(clean);
     setSaving(false);
@@ -259,7 +282,7 @@ function AdminPanel({ picks, onSave, onClose }) {
   const inputStyle = {
     background: "#0d1f14", border: "1px solid rgba(201,168,76,0.3)",
     borderRadius: 6, color: "#e8dfc4", padding: "6px 10px",
-    fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box"
+    fontSize: 13, outline: "none", boxSizing: "border-box"
   };
 
   return (
@@ -269,12 +292,13 @@ function AdminPanel({ picks, onSave, onClose }) {
     }}>
       <div style={{
         background: "#12261a", border: `1px solid ${GOLD}`, borderRadius: 16,
-        padding: 28, maxWidth: 600, width: "100%", maxHeight: "90vh", overflowY: "auto"
+        padding: 28, maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto"
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <h2 style={{ color: GOLD, fontFamily: "Georgia, serif", fontSize: 22, margin: 0 }}>Manage Picks</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#888", fontSize: 22, cursor: "pointer" }}>✕</button>
         </div>
+        <p style={{ color: "#555", fontSize: 11, marginBottom: 20 }}>{COUNTRY_HINT}</p>
 
         {teams.map((team, ti) => (
           <div key={ti} style={{
@@ -283,25 +307,45 @@ function AdminPanel({ picks, onSave, onClose }) {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <input
-                style={{ ...inputStyle, fontSize: 15, fontWeight: 600 }}
+                style={{ ...inputStyle, fontSize: 15, fontWeight: 600, flex: 1 }}
                 placeholder="Participant name"
                 value={team.name}
-                onChange={e => updateName(ti, e.target.value)}
+                onChange={e => updateTeamName(ti, e.target.value)}
               />
               <button onClick={() => removeTeam(ti)} style={{
                 marginLeft: 10, background: "none", border: "1px solid #e05252",
                 color: "#e05252", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12
               }}>Remove</button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+
+            {/* Column headers */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 52px", gap: 6, marginBottom: 4, padding: "0 2px" }}>
+              <span style={{ fontSize: 10, color: "#444" }}>GOLFER NAME</span>
+              <span style={{ fontSize: 10, color: "#444", textAlign: "center" }}>FLAG</span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {team.golfers.map((g, gi) => (
-                <input
-                  key={gi}
-                  style={inputStyle}
-                  placeholder={`Golfer ${gi + 1}${gi >= 4 ? " (reserve)" : ""}`}
-                  value={g}
-                  onChange={e => updateGolfer(ti, gi, e.target.value)}
-                />
+                <div key={gi} style={{ display: "grid", gridTemplateColumns: "1fr 52px", gap: 6, alignItems: "center" }}>
+                  <input
+                    style={{ ...inputStyle, width: "100%" }}
+                    placeholder={`Golfer ${gi + 1}${gi >= 4 ? " (reserve)" : ""}`}
+                    value={g.name}
+                    onChange={e => updateGolferField(ti, gi, "name", e.target.value)}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      style={{ ...inputStyle, width: "100%", textAlign: "center", textTransform: "uppercase", letterSpacing: 2, padding: "6px 4px" }}
+                      placeholder="US"
+                      maxLength={2}
+                      value={g.country}
+                      onChange={e => updateGolferField(ti, gi, "country", e.target.value)}
+                    />
+                    <span style={{ fontSize: 18, minWidth: 24, textAlign: "center" }}>
+                      {countryFlag(g.country)}
+                    </span>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -318,7 +362,7 @@ function AdminPanel({ picks, onSave, onClose }) {
           }}>{saving ? "Saving..." : "Save Picks"}</button>
         </div>
         <p style={{ color: "#666", fontSize: 11, marginTop: 12, textAlign: "center" }}>
-          Golfer names must match PGA Tour listings. Golfers 5 & 6 are reserves — worst 2 scores dropped automatically.
+          Golfer names must match PGA Tour listings. Golfers 5 & 6 are reserves.
         </p>
       </div>
     </div>
@@ -398,7 +442,12 @@ export default function MastersPool() {
   const loadPicks = useCallback(async () => {
     const { data, error } = await supabase.from("picks").select("*");
     if (!error && data) {
-      setPicks(data.map(row => ({ name: row.participant, golfers: row.golfers })));
+      setPicks(data.map(row => ({
+        name: row.participant,
+        golfers: Array.isArray(row.golfers)
+          ? row.golfers.map(g => typeof g === "string" ? { name: g, country: "" } : g)
+          : []
+      })));
     }
   }, []);
 
@@ -417,7 +466,7 @@ export default function MastersPool() {
     setLoading(true);
     setError(null);
     try {
-      const allGolfers = [...new Set(picks.flatMap(p => p.golfers))];
+      const allGolfers = [...new Set(picks.flatMap(p => p.golfers.map(g => g.name || g)))];
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -471,13 +520,18 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
   }, [picks, fetchScores]);
 
   const rankedTeams = picks.map(team => {
-    const withScores = team.golfers.map(name => ({
-      name,
-      relative: liveScores[name]?.relative ?? null,
-      position: liveScores[name]?.position ?? null,
-      missedCut: liveScores[name]?.missedCut ?? false,
-      thru: liveScores[name]?.thru ?? null,
-    }));
+    const withScores = team.golfers.map(g => {
+      const name = g.name || g;
+      const country = g.country || "";
+      return {
+        name,
+        country,
+        relative: liveScores[name]?.relative ?? null,
+        position: liveScores[name]?.position ?? null,
+        missedCut: liveScores[name]?.missedCut ?? false,
+        thru: liveScores[name]?.thru ?? null,
+      };
+    });
 
     let total = 0;
     if (!cutHappened) {
