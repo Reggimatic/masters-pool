@@ -549,7 +549,7 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
   }
 }
 IMPORTANT: You MUST return every single golfer listed in the request. Never omit a golfer - use null values if data is unavailable. The "thru" and "today" fields refer to the current/most recent round only.`,
-          messages: [{ role: "user", content: `Search for the LIVE leaderboard for ${tournamentName} RIGHT NOW. Today is the current round in progress - search for "live leaderboard" or "current scores" to get the most up-to-date data, not just round 1 results. For each of these ${allGolfers.length} golfers: ${allGolfers.join(", ")} — find their TOTAL tournament score (all rounds combined), their score for TODAY's round specifically (the round currently in progress or most recently completed), how many holes they have played TODAY (thru), their current leaderboard position, and whether they missed the cut. The "relative" field must be their TOTAL score across all rounds played so far. The "today" field must be their score in the current/latest round only. Search for the live scoring page to get thru and today data. Return all ${allGolfers.length} golfers in the JSON.` }],
+          messages: [{ role: "user", content: `Search for "${tournamentName} live leaderboard round 2 scores today" and also try fetching https://www.pgatour.com/leaderboard to get the current live leaderboard. For each of these ${allGolfers.length} golfers: ${allGolfers.join(", ")} — I need: (1) "relative": their TOTAL score across ALL rounds e.g. -9, (2) "today": their score in round 2 only e.g. -3, (3) "thru": how many holes they have played in round 2 e.g. "12" or "F" if finished, (4) "position": leaderboard position e.g. "T4", (5) "missedCut": false for now. The live leaderboard should show all of these columns. Return all ${allGolfers.length} golfers in the JSON.` }],
           tools: [{ type: "web_search_20250305", name: "web_search" }]
         })
       });
@@ -562,6 +562,7 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
         const parsed = JSON.parse(jsonMatch[0]);
         console.log("API golfers sample:", JSON.stringify(Object.entries(parsed.golfers || {}).slice(0, 3)));
         console.log("API golfer keys:", Object.keys(parsed.golfers || {}));
+        console.log("API full raw text:", raw.slice(0, 2000));
         setLiveScores(parsed.golfers || {});
         setCutHappened(parsed.cutHappened || false);
         setWorstMadeCut(parsed.worstMadeCutScore ?? null);
