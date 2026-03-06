@@ -558,7 +558,7 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
   }
 }
 IMPORTANT: You MUST return every single golfer listed in the request. Never omit a golfer - use null values if data is unavailable. The "thru" and "today" fields refer to the current/most recent round only.`,
-          messages: [{ role: "user", content: `Search for "${tournamentName} live leaderboard round 2 scores today" and also try fetching https://www.pgatour.com/leaderboard to get the current live leaderboard. For each of these ${allGolfers.length} golfers: ${allGolfers.join(", ")} — I need: (1) "relative": their TOTAL score across ALL rounds e.g. -9, (2) "today": their score in round 2 only e.g. -3, (3) "thru": how many holes they have played in round 2 e.g. "12" or "F" if finished, (4) "position": leaderboard position e.g. "T4", (5) "missedCut": false for now. The live leaderboard should show all of these columns. Return all ${allGolfers.length} golfers in the JSON.` }],
+          messages: [{ role: "user", content: `Search the web for the current live leaderboard for the ${tournamentName}. Find the current scores for each of these ${allGolfers.length} golfers: ${allGolfers.join(", ")}. For each golfer I need: (1) "relative": their TOTAL tournament score relative to par as an integer e.g. -9, (2) "today": their score in the current round only as an integer e.g. -3, (3) "position": leaderboard position e.g. "T4", (4) "missedCut": false for now. You MUST include all ${allGolfers.length} golfers. Return ONLY the JSON object, no other text.` }],
           tools: [{ type: "web_search_20250305", name: "web_search" }]
         })
       });
@@ -567,6 +567,11 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
       if (data.type === "error") throw new Error(`API error: ${data.error?.message}`);
       // Collect all text across all text blocks (model sometimes splits across blocks)
       const allText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+
+const allText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+console.log("allText length:", allText.length);
+console.log("allText preview:", allText.substring(0, 200));
+
       if (!allText) throw new Error(`No text block in response. Stop reason: ${data.stop_reason}. Blocks: ${JSON.stringify(data.content?.map(b => b.type))}`);
       const raw = allText;
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
