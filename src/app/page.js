@@ -568,10 +568,6 @@ IMPORTANT: You MUST return every single golfer listed in the request. Never omit
       // Collect all text across all text blocks (model sometimes splits across blocks)
       const allText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
 
-const allText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-console.log("allText length:", allText.length);
-console.log("allText preview:", allText.substring(0, 200));
-
       if (!allText) throw new Error(`No text block in response. Stop reason: ${data.stop_reason}. Blocks: ${JSON.stringify(data.content?.map(b => b.type))}`);
       const raw = allText;
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
