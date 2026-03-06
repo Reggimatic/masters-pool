@@ -518,7 +518,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
     setLoading(true); setError(null);
     try {
       const allGolfers = [...new Set(picks.flatMap(p => p.golfers.map(g => g.name || g)))];
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/scores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
