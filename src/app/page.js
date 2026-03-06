@@ -47,7 +47,7 @@ function GolferRow({ golfer, isCut, isPenalty }) {
       display: "flex", alignItems: "center", gap: 10,
       opacity: isCut ? 0.35 : 1,
       padding: "4px 0",
-      borderBottom: "1px solid rgba(201,168,76,0.1)"
+      borderBottom: "1px solid rgba(201,168,76,0.08)"
     }}>
       <span style={{
         fontSize: 11, color: GOLD, minWidth: 18, textAlign: "right",
@@ -77,8 +77,7 @@ function GolferRow({ golfer, isCut, isPenalty }) {
   );
 }
 
-function TeamCard({ team, rank, cutHappened, worstMadeCut }) {
-  // Separate golfers into made cut vs missed cut
+function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle }) {
   const madeCut = team.golfers.filter(g => !g.missedCut);
   const missedCut = team.golfers.filter(g => g.missedCut);
 
@@ -87,7 +86,6 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut }) {
   let penaltySlots = 0;
 
   if (!cutHappened) {
-    // Pre-cut: best 4 of 6, worst 2 dropped
     const sorted = [...team.golfers].sort((a, b) => {
       if (a.relative === null && b.relative === null) return 0;
       if (a.relative === null) return 1;
@@ -97,7 +95,6 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut }) {
     scoringGolfers = sorted.slice(0, 4);
     droppedGolfers = sorted.slice(4);
   } else {
-    // Post-cut: best made-cut golfers score, fill gaps with penalty
     const sortedMadeCut = [...madeCut].sort((a, b) => {
       if (a.relative === null && b.relative === null) return 0;
       if (a.relative === null) return 1;
@@ -117,40 +114,77 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut }) {
   const totalColor = total < 0 ? "#e05252" : total > 0 ? "#aaa" : "#c9a84c";
   const medals = ["🥇", "🥈", "🥉"];
 
+  // Build a compact summary line for collapsed view
+  const topNames = scoringGolfers.slice(0, 4).map(g => g.name.split(" ").pop()).join(", ");
+
   return (
     <div style={{
       background: "linear-gradient(160deg, #12261a 0%, #0d1f14 100%)",
       border: `1px solid ${rank === 1 ? GOLD : "rgba(201,168,76,0.2)"}`,
       borderRadius: 12,
-      padding: "18px 20px",
       boxShadow: rank === 1 ? `0 0 24px rgba(201,168,76,0.18)` : "0 2px 12px rgba(0,0,0,0.4)",
+      overflow: "hidden",
+      transition: "box-shadow 0.3s",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>{medals[rank - 1] || rank}</span>
-          <span style={{ fontFamily: "Georgia, serif", fontSize: 17, color: "#e8dfc4", letterSpacing: 0.5 }}>
+      {/* Header row — always visible, clickable to toggle */}
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "16px 20px",
+          cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        <span style={{ fontSize: 18, minWidth: 26 }}>{medals[rank - 1] || rank}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 17, color: "#e8dfc4", letterSpacing: 0.5 }}>
             {team.name}
-          </span>
+          </div>
+          {!expanded && topNames && (
+            <div style={{ fontSize: 11, color: "#666", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {topNames}{penaltySlots > 0 ? ` + ${penaltySlots} penalty` : ""}
+            </div>
+          )}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: totalColor, fontFamily: "monospace", letterSpacing: 1 }}>
-          {totalLabel}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: totalColor, fontFamily: "monospace", letterSpacing: 1 }}>
+            {totalLabel}
+          </div>
+          <span style={{
+            color: "#555", fontSize: 12,
+            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.25s",
+            display: "inline-block",
+            lineHeight: 1,
+          }}>▼</span>
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {scoringGolfers.map(g => (
-          <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} />
-        ))}
-        {Array.from({ length: penaltySlots }).map((_, i) => (
-          <GolferRow
-            key={`penalty-${i}`}
-            golfer={{ relative: worstMadeCut }}
-            isCut={false}
-            isPenalty={true}
-          />
-        ))}
-        {droppedGolfers.map(g => (
-          <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isPenalty={false} />
-        ))}
+
+      {/* Expandable golfer list */}
+      <div style={{
+        maxHeight: expanded ? "600px" : "0px",
+        overflow: "hidden",
+        transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}>
+        <div style={{ padding: "0 20px 16px", borderTop: "1px solid rgba(201,168,76,0.1)" }}>
+          <div style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+            {scoringGolfers.map(g => (
+              <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} />
+            ))}
+            {Array.from({ length: penaltySlots }).map((_, i) => (
+              <GolferRow
+                key={`penalty-${i}`}
+                golfer={{ relative: worstMadeCut }}
+                isCut={false}
+                isPenalty={true}
+              />
+            ))}
+            {droppedGolfers.map(g => (
+              <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isPenalty={false} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -309,6 +343,20 @@ export default function MastersPool() {
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
 
+  // expandedTeams is a Set of team names that are currently expanded
+  // Stored in a ref so score refreshes don't reset it
+  const expandedTeams = useRef(new Set());
+  const [, forceUpdate] = useState(0);
+
+  const toggleTeam = (name) => {
+    if (expandedTeams.current.has(name)) {
+      expandedTeams.current.delete(name);
+    } else {
+      expandedTeams.current.add(name);
+    }
+    forceUpdate(n => n + 1);
+  };
+
   const loadPicks = useCallback(async () => {
     const { data, error } = await supabase.from("picks").select("*");
     if (!error && data) {
@@ -383,7 +431,6 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
     }
   }, [picks, fetchScores]);
 
-  // Build ranked teams with cut-aware scoring
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(name => ({
       name,
@@ -502,7 +549,7 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
             <p style={{ color: "#555", fontSize: 14 }}>Click <strong style={{ color: GOLD }}>Admin</strong> below to add participants and their golfer picks.</p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
                 <TeamCard
@@ -510,13 +557,15 @@ Return ONLY a JSON object (no markdown, no explanation) with this exact structur
                   rank={i + 1}
                   cutHappened={cutHappened}
                   worstMadeCut={worstMadeCut}
+                  expanded={expandedTeams.current.has(team.name)}
+                  onToggle={() => toggleTeam(team.name)}
                 />
               </div>
             ))}
           </div>
         )}
 
-        <div style={{ marginTop: 32, textAlign: "center", fontSize: 12, color: "#444", marginBottom: 16 }}>
+        <div style={{ marginTop: 28, textAlign: "center", fontSize: 12, color: "#444", marginBottom: 16 }}>
           {cutHappened
             ? "Post-cut: best 4 survivors score · missed cut spots filled with penalty score"
             : "Top 4 of 6 golfers score · Worst 2 dropped automatically · Scores update every 5 minutes"
