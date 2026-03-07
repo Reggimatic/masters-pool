@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { GrRefresh } from "react-icons/gr";
 
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
@@ -134,17 +135,21 @@ function PickerPage({ onSelect }) {
 
 // ─── Shared UI Components ────────────────────────────────────────────────────
 
-function LastUpdatedTimer({ lastUpdated }) {
-  const [elapsed, setElapsed] = useState(0);
+function NextUpdateTimer({ lastUpdated, onRefresh }) {
+  const [remaining, setRemaining] = useState(5 * 60);
   useEffect(() => {
-    setElapsed(0);
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
-    }, 10000);
+    const calc = () => Math.max(0, 5 * 60 - Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+    setRemaining(calc());
+    const interval = setInterval(() => setRemaining(calc()), 1000);
     return () => clearInterval(interval);
   }, [lastUpdated]);
-  const format = (secs) => secs < 60 ? "just now" : `${Math.floor(secs / 60)}m ago`;
-  return <span style={{ color: "#5BD397", fontSize: 12 }}>Updated {format(elapsed)}</span>;
+  const mins = Math.ceil(remaining / 60);
+  return (
+    <span style={{ color: "#5BD397", fontSize: 12 }}>
+      Next update: {mins}m
+      <button onClick={onRefresh} style={{ background: "none", border: "1px solid #5BD397", color: "#5BD397", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
+    </span>
+  );
 }
 
 function ScoreDisplay({ relative, isScoring }) {
@@ -235,8 +240,8 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
   const previewText = scoringGolfers.map(g => g.name.split(" ").pop()).join(", ");
 
   return (
-    <div style={{ background: expanded ? "#fff" : "#E8E8E8", borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
-      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "#E8E8E8", borderRadius: expanded ? "10px 10px 0 0" : 10 }}>
+    <div style={{ background: expanded ? "#fff" : "#E8E8E8", borderRadius: 7, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
+      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "#E8E8E8", borderRadius: expanded ? "7px 7px 0 0" : 7 }}>
         <div style={{ width: 44, height: 44, borderRadius: 8, background: "#1a472a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>
           ⛳
         </div>
@@ -476,7 +481,42 @@ function PasswordModal({ onSuccess, onClose }) {
 
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
-function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
+function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} style={{ position: "relative", display: "inline-block", ...style }}>
+      <button onClick={() => setOpen(!open)} style={{ background: "none", border: "none", color, padding: 0, cursor: "pointer", font: "inherit", fontSize: "inherit", fontFamily: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}>
+        <span style={{ fontSize: "0.75em", marginRight: 4, opacity: 0.7 }}>▾</span>{label}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "100%", ...(align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 }), marginTop: 6, background: "#143625", border: "1px solid #337B57", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, minWidth: 180, overflow: "hidden" }}>
+          {items.map(item => (
+            <div
+              key={item.id}
+              onClick={() => { onSelect(item.id); setOpen(false); }}
+              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? "#FCE300" : "#e8dfc4", cursor: "pointer", borderBottom: "1px solid rgba(51,123,87,0.3)", whiteSpace: "nowrap" }}
+              onMouseEnter={e => { if (item.id !== currentId) e.target.style.background = "rgba(255,255,255,0.05)"; }}
+              onMouseLeave={e => { e.target.style.background = "transparent"; }}
+            >
+              {item.display_name}
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+function Leaderboard({ tournament, group, tournamentName, groupName, allTournaments, allGroups, onSwitch }) {
   const [picks, setPicks] = useState([]);
   const [liveScores, setLiveScores] = useState({});
   const [cutHappened, setCutHappened] = useState(false);
@@ -580,17 +620,19 @@ function Leaderboard({ tournament, group, tournamentName, groupName, onBack }) {
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e8dfc4" }}>
       <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57" }}>
-        <div style={{ fontSize: 12, fontFamily: "Georgia, serif", color: "#FCE300", letterSpacing: 4, textTransform: "uppercase", marginBottom: 2 }}>{tournamentName}</div>
+        <div style={{ fontSize: 12, fontFamily: "Georgia, serif", color: "#FCE300", letterSpacing: 4, textTransform: "uppercase", marginBottom: 2 }}>
+          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color="#FCE300" align="center" />
+        </div>
         <h1 style={{ fontFamily: "Georgia, serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 400, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
         {cutHappened && worstMadeCut !== null && <div style={{ fontSize: 12, color: "#666" }}>Cut made · Penalty: <span style={{ color: "#888" }}>{worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut}</span></div>}
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#5BD397", padding: 0, fontSize: 13, cursor: "pointer" }}>{groupName}</button>
+          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color="#5BD397" style={{ fontSize: 13, textTransform: "uppercase" }} />
           <div style={{ fontSize: 12 }}>
-            {loading ? <span style={{ color: "#5BD397" }}>Updating...</span>
-              : lastUpdated ? <LastUpdatedTimer lastUpdated={lastUpdated} />
+            {loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
+              : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
               : <span style={{ color: "#555" }}>—</span>}
           </div>
         </div>
@@ -633,31 +675,36 @@ function AppShell() {
   const router = useRouter();
   const [tournamentMeta, setTournamentMeta] = useState(null);
   const [groupMeta, setGroupMeta] = useState(null);
+  const [allTournaments, setAllTournaments] = useState([]);
+  const [allGroups, setAllGroups] = useState([]);
 
   const tournament = searchParams.get("tournament");
   const group = searchParams.get("group");
 
   useEffect(() => {
-    if (tournament && group) {
-      (async () => {
-        const [{ data: t }, { data: g }] = await Promise.all([
-          supabase.from("tournaments").select("*").eq("id", tournament).single(),
-          supabase.from("groups").select("*").eq("id", group).single()
-        ]);
-        setTournamentMeta(t);
-        setGroupMeta(g);
-      })();
+    (async () => {
+      const [{ data: t }, { data: g }] = await Promise.all([
+        supabase.from("tournaments").select("*").order("created_at", { ascending: false }),
+        supabase.from("groups").select("*").order("created_at")
+      ]);
+      setAllTournaments(t || []);
+      setAllGroups(g || []);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (tournament && group && allTournaments.length && allGroups.length) {
+      setTournamentMeta(allTournaments.find(t => t.id === tournament) || null);
+      setGroupMeta(allGroups.find(g => g.id === group) || null);
     }
-  }, [tournament, group]);
+  }, [tournament, group, allTournaments, allGroups]);
 
   const handleSelect = (t, g) => {
     router.push(`?tournament=${t}&group=${g}`);
   };
 
-  const handleBack = () => {
-    router.push("/");
-    setTournamentMeta(null);
-    setGroupMeta(null);
+  const handleSwitch = (t, g) => {
+    router.push(`?tournament=${t}&group=${g}`);
   };
 
   if (!tournament || !group) {
@@ -678,7 +725,9 @@ function AppShell() {
       group={group}
       tournamentName={tournamentMeta.display_name}
       groupName={groupMeta.display_name}
-      onBack={handleBack}
+      allTournaments={allTournaments}
+      allGroups={allGroups}
+      onSwitch={handleSwitch}
     />
   );
 }
