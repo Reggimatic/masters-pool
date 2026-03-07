@@ -207,7 +207,7 @@ function GolferRowHeader() {
   );
 }
 
-function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle }) {
+function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl }) {
   const madeCut = team.golfers.filter(g => !g.missedCut);
   const missedCut = team.golfers.filter(g => g.missedCut);
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
@@ -242,9 +242,13 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
   return (
     <div style={{ background: expanded ? "#fff" : "#E8E8E8", borderRadius: 7, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
       <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "#E8E8E8", borderRadius: expanded ? "7px 7px 0 0" : 7 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 8, background: "#1a472a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>
-          ⛳
-        </div>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={team.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 44, height: 44, borderRadius: 8, background: "#1a472a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>
+            ⛳
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: "#1a1a1a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{team.name}</div>
           {!expanded && previewText && (
@@ -276,7 +280,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle })
 
 const COUNTRY_HINT = "2-letter code: US, GB, AU, IE, ZA, ES, JP, SE, NO, DE, CA, AR, KR...";
 
-function AdminPanel({ picks, tournament, group, onSave, onClose }) {
+function AdminPanel({ picks, tournament, group, onSave, onClose, avatars, onAvatarsChange }) {
   const emptyGolfer = { name: "", country: "" };
   const [tab, setTab] = useState("picks");
   const [teams, setTeams] = useState(
@@ -285,6 +289,35 @@ function AdminPanel({ picks, tournament, group, onSave, onClose }) {
       : [{ name: "", golfers: Array(6).fill(null).map(() => ({ ...emptyGolfer })) }]
   );
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(null);
+
+  const uploadAvatar = async (participantName, file) => {
+    if (!participantName.trim()) return;
+    setUploading(participantName);
+    const ext = file.name.split(".").pop();
+    const path = `${participantName.trim().toLowerCase().replace(/\s+/g, "-")}.${ext}`;
+    // Remove old file if it exists
+    await supabase.storage.from("avatars").remove([path]);
+    const { error: uploadErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (uploadErr) { console.error("Upload error:", uploadErr.message); setUploading(null); return; }
+    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+    const url = publicUrl + "?v=" + Date.now();
+    await supabase.from("avatars").upsert({ participant: participantName.trim(), image_url: url });
+    onAvatarsChange(prev => ({ ...prev, [participantName.trim()]: url }));
+    setUploading(null);
+  };
+
+  const removeAvatar = async (participantName) => {
+    setUploading(participantName);
+    const currentUrl = avatars[participantName];
+    if (currentUrl) {
+      const urlPath = currentUrl.split("/avatars/")[1]?.split("?")[0];
+      if (urlPath) await supabase.storage.from("avatars").remove([urlPath]);
+    }
+    await supabase.from("avatars").delete().eq("participant", participantName);
+    onAvatarsChange(prev => { const next = { ...prev }; delete next[participantName]; return next; });
+    setUploading(null);
+  };
 
   // Tournament/group management
   const [tournaments, setTournaments] = useState([]);
@@ -387,6 +420,20 @@ function AdminPanel({ picks, tournament, group, onSave, onClose }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <input style={{ ...inputStyle, fontSize: 15, fontWeight: 600, flex: 1 }} placeholder="Participant name" value={team.name} onChange={e => updateTeamName(ti, e.target.value)} />
                   <button onClick={() => removeTeam(ti)} style={{ marginLeft: 10, background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>Remove</button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.1)" }}>
+                  {avatars[team.name] ? (
+                    <img src={avatars[team.name]} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: 36, height: 36, borderRadius: 6, background: "#1a472a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⛳</div>
+                  )}
+                  <label style={{ background: "none", border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>
+                    {uploading === team.name ? "Uploading..." : avatars[team.name] ? "Replace" : "Upload Image"}
+                    <input type="file" accept="image/*" hidden onChange={e => { if (e.target.files[0] && team.name.trim()) uploadAvatar(team.name, e.target.files[0]); }} />
+                  </label>
+                  {avatars[team.name] && (
+                    <button onClick={() => removeAvatar(team.name)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>Remove</button>
+                  )}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 52px", gap: 6, marginBottom: 4, padding: "0 2px" }}>
                   <span style={{ fontSize: 10, color: "#444" }}>GOLFER NAME</span>
@@ -536,13 +583,29 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
     forceUpdate(n => n + 1);
   };
 
+  const [avatars, setAvatars] = useState({});
+
+  const loadAvatars = useCallback(async (names) => {
+    if (!names.length) return;
+    const { data } = await supabase.from("avatars").select("*").in("participant", names);
+    if (data) {
+      const map = {};
+      data.forEach(row => { map[row.participant] = row.image_url; });
+      setAvatars(map);
+    }
+  }, []);
+
   const loadPicks = useCallback(async () => {
     const { data } = await supabase.from("picks").select("*").eq("tournament", tournament).eq("group_name", group);
-    if (data) setPicks(data.map(row => ({
-      name: row.participant,
-      golfers: Array.isArray(row.golfers) ? row.golfers.map(g => typeof g === "string" ? { name: g, country: "" } : g) : []
-    })));
-  }, [tournament, group]);
+    if (data) {
+      const mapped = data.map(row => ({
+        name: row.participant,
+        golfers: Array.isArray(row.golfers) ? row.golfers.map(g => typeof g === "string" ? { name: g, country: "" } : g) : []
+      }));
+      setPicks(mapped);
+      loadAvatars(mapped.map(p => p.name));
+    }
+  }, [tournament, group, loadAvatars]);
 
   useEffect(() => { loadPicks(); }, [loadPicks]);
 
@@ -648,7 +711,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} />
+                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} />
               </div>
             ))}
           </div>
@@ -663,7 +726,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       </div>
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
-      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} onSave={savePicks} onClose={() => setShowAdmin(false)} />}
+      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} onSave={savePicks} onClose={() => setShowAdmin(false)} avatars={avatars} onAvatarsChange={setAvatars} />}
     </div>
   );
 }
