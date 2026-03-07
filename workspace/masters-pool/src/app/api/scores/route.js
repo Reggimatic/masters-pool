@@ -90,25 +90,40 @@ export async function POST(request) {
   // Determine cut status
   let cutHappened = false;
   let worstMadeCutScore = null;
+  let worstMadeCutName = null;
 
-  // Check if any competitor has status indicating they missed the cut
+  // Check if any competitor has explicit status indicating they missed the cut
   const hasCutIndicators = competitors.some((c) => {
     const status = c.status?.type?.name?.toLowerCase() || "";
     return status === "cut" || status === "missed cut";
   });
 
+  // Helper: determine if a competitor made the cut
+  const didMakeCut = (c) => {
+    const status = c.status?.type?.name?.toLowerCase() || "";
+    if (status === "cut" || status === "missed cut") return false;
+    if (status === "wd" || status === "dq") return false;
+    if (hasCutIndicators) return true;
+
+    // No explicit cut statuses — infer from linescore count.
+    // Players who made the cut have R3/R4 linescore entries (4 total);
+    // players who missed the cut only have R1/R2 (2 total).
+    if (round >= 3) {
+      return (c.linescores || []).length > 2;
+    }
+    return true;
+  };
+
   if (hasCutIndicators || round >= 3) {
     cutHappened = true;
-    // Find the worst score among those who made the cut
-    const madeCutScores = competitors
-      .filter((c) => {
-        const status = c.status?.type?.name?.toLowerCase() || "";
-        return status !== "cut" && status !== "missed cut" && status !== "wd" && status !== "dq";
-      })
+    const madeCutCompetitors = competitors.filter((c) => didMakeCut(c));
+    const madeCutScores = madeCutCompetitors
       .map((c) => parseScore(c.score))
       .filter((s) => s !== null);
     if (madeCutScores.length > 0) {
       worstMadeCutScore = Math.max(...madeCutScores);
+      const worstPlayer = madeCutCompetitors.find((c) => parseScore(c.score) === worstMadeCutScore);
+      worstMadeCutName = worstPlayer?.athlete?.displayName || worstPlayer?.athlete?.shortName || null;
     }
   }
 
@@ -144,8 +159,7 @@ export async function POST(request) {
     }
 
     // Missed cut detection
-    const status = c.status?.type?.name?.toLowerCase() || "";
-    const missedCut = status === "cut" || status === "missed cut";
+    const missedCut = cutHappened && !didMakeCut(c);
 
     const position = positionMap.get(norm) || c.status?.position?.displayName || null;
 
@@ -156,6 +170,7 @@ export async function POST(request) {
     round,
     cutHappened,
     worstMadeCutScore,
+    worstMadeCutName,
     golfers,
     tournamentName: event.name || tournamentName,
   });
