@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { GrRefresh, GrDocumentText, GrSecure } from "react-icons/gr";
+import { GrRefresh } from "react-icons/gr";
+import { IoSettingsOutline } from "react-icons/io5";
 
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
@@ -147,7 +148,7 @@ function NextUpdateTimer({ lastUpdated, onRefresh }) {
   return (
     <span style={{ color: "#5BD397", fontSize: 12 }}>
       Next update: {mins}m
-      <button onClick={onRefresh} style={{ background: "none", border: "1px solid #5BD397", color: "#5BD397", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
+      <button onClick={onRefresh} style={{ background: "rgb(26, 68, 46)", border: "1px solid rgb(20, 54, 37)", color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
     </span>
   );
 }
@@ -510,15 +511,15 @@ function PasswordModal({ onSuccess, onClose }) {
   const attempt = () => { if (val === ADMIN_PASSWORD) { onSuccess(); } else { setErr(true); setVal(""); } };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#12261a", border: `1px solid ${GOLD}`, borderRadius: 16, padding: 36, maxWidth: 340, width: "100%", textAlign: "center" }}>
+      <div style={{ background: "rgb(20, 54, 37)", border: "1px solid rgb(51, 124, 87)", borderRadius: 16, padding: 36, maxWidth: 340, width: "100%", textAlign: "center" }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>⛳</div>
-        <h2 style={{ color: GOLD, marginBottom: 20, fontWeight: 700 }}>Admin Access</h2>
+        <h2 style={{ color: "rgb(252, 227, 0)", marginBottom: 20, fontWeight: 700 }}>Admin Access</h2>
         <input type="password" value={val} onChange={e => { setVal(e.target.value); setErr(false); }} onKeyDown={e => e.key === "Enter" && attempt()} placeholder="Password"
-          style={{ width: "100%", boxSizing: "border-box", background: "#0d1f14", border: `1px solid ${err ? "#e05252" : "rgba(201,168,76,0.4)"}`, borderRadius: 8, color: "#e8dfc4", padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 8 }} />
+          style={{ width: "100%", boxSizing: "border-box", background: "#ffffff", border: `2px solid ${err ? "#e05252" : "rgb(91, 211, 151)"}`, borderRadius: 8, color: "#333", padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 8 }} />
         {err && <p style={{ color: "#e05252", fontSize: 13, margin: "0 0 10px" }}>Incorrect password</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <button onClick={onClose} style={{ flex: 1, background: "none", border: "1px solid #555", borderRadius: 8, padding: "11px", fontSize: 15, color: "#888", cursor: "pointer" }}>Cancel</button>
-          <button onClick={attempt} style={{ flex: 1, background: GOLD, border: "none", borderRadius: 8, padding: "11px", fontSize: 15, fontWeight: 700, color: "#0d1f14", cursor: "pointer" }}>Enter</button>
+          <button onClick={attempt} style={{ flex: 1, background: "rgb(252, 227, 0)", border: "none", borderRadius: 8, padding: "11px", fontSize: 15, fontWeight: 700, color: "#0d1f14", cursor: "pointer" }}>Enter</button>
         </div>
       </div>
     </div>
@@ -684,7 +685,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e8dfc4" }}>
       <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57" }}>
-        <div style={{ fontSize: 12, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: "#FCE300", letterSpacing: 4, textTransform: "uppercase", marginBottom: 2 }}>
+        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
           <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color="#FCE300" align="center" />
         </div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 400, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
@@ -692,7 +693,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color="#5BD397" style={{ fontSize: 13, textTransform: "uppercase" }} />
+          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color="#FCE300" style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} />
           <div style={{ fontSize: 12 }}>
             {loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
               : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
@@ -717,16 +718,14 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           </div>
         )}
 
-        <div style={{ marginTop: 20, fontSize: 12, color: "#42946B", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ marginTop: 14, fontSize: 12, color: "#5BD397", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             {cutHappened && worstMadeCut !== null && worstMadeCutName && (
-              <>Lowest made cut score: {worstMadeCutName} ({worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut})</>
+              <>Lowest made cut score: {worstMadeCutName} ({worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut}) <span style={{ margin: "0 6px" }}>|</span></>
             )}
+            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#42946B", display: "flex", alignItems: "center" }}><GrDocumentText size={16} /></a>
-            <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#42946B", cursor: "pointer", display: "flex", alignItems: "center" }}><GrSecure size={16} /></a>
-          </div>
+          <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "rgb(51, 124, 87)", cursor: "pointer", display: "flex", alignItems: "center" }}><IoSettingsOutline size={18} /></a>
         </div>
       </div>
 
