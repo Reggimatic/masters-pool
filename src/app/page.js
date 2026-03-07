@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { GrRefresh } from "react-icons/gr";
+import { GrRefresh, GrDocumentText, GrSecure } from "react-icons/gr";
 
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
@@ -54,7 +54,7 @@ function PickerPage({ onSelect }) {
       <div style={{ fontSize: 13, color: GOLD, letterSpacing: 4, textTransform: "uppercase", marginBottom: 8 }}>
         Golf Pool
       </div>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "clamp(24px, 5vw, 40px)", color: "#e8dfc4", margin: "0 0 40px", fontWeight: 400, textAlign: "center" }}>
+      <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(24px, 5vw, 40px)", color: "#e8dfc4", margin: "0 0 40px", fontWeight: 400, textAlign: "center" }}>
         Select Your Pool
       </h1>
 
@@ -160,22 +160,21 @@ function ScoreDisplay({ relative, isScoring }) {
 }
 
 function GolferRow({ golfer, isCut, isPenalty, isDropped }) {
-  const flag = isPenalty || isCut ? "" : countryFlag(golfer.country);
+  const flag = isPenalty ? "" : countryFlag(golfer.country);
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 8,
-      opacity: isCut ? 0.4 : 1,
       padding: "6px 12px",
-      background: isDropped ? "#E8E8E8" : "transparent",
+      background: (isDropped || isCut) ? "#E8E8E8" : "transparent",
       borderBottom: "1px solid #D8D8D8"
     }}>
       <span style={{ fontSize: 13, color: "#408C64", minWidth: 24, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0 }}>
         {isCut || isPenalty ? "—" : (golfer.position || "—")}
       </span>
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
-      <span style={{ flex: 1, fontSize: 13, color: isCut ? "#aaa" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (isCut || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {isPenalty ? "Penalty (missed cut)" : golfer.name}
-        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#aaa" }}>(missed cut)</span>}
+      <span style={{ flex: 1, fontSize: 13, color: isCut ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (isCut || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {isPenalty ? "Missed cut penalty" : golfer.name}
+        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>(missed cut)</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
         {!isCut && !isPenalty && golfer.today !== null && golfer.today !== undefined
@@ -196,13 +195,13 @@ function GolferRow({ golfer, isCut, isPenalty, isDropped }) {
 
 function GolferRowHeader() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px 6px", borderBottom: "2px solid #1a472a" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 6px 12px", borderBottom: "2px solid #1a472a" }}>
       <span style={{ fontSize: 12, color: "#888", minWidth: 24, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>POS</span>
       <span style={{ fontSize: 12, color: "#888", minWidth: 20, flexShrink: 0 }}></span>
       <span style={{ flex: 1, fontSize: 12, color: "#888", fontWeight: 600, letterSpacing: 1 }}>PLAYER</span>
-      <span style={{ fontSize: 12, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>TODAY</span>
-      <span style={{ fontSize: 12, color: "#888", minWidth: 28, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>THRU</span>
-      <span style={{ fontSize: 12, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>SCORE</span>
+      <span style={{ fontSize: 10, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>TODAY</span>
+      <span style={{ fontSize: 10, color: "#888", minWidth: 28, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>THRU</span>
+      <span style={{ fontSize: 10, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>SCORE</span>
     </div>
   );
 }
@@ -250,7 +249,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: "#1a1a1a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{team.name}</div>
+          <div style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: expanded ? 24 : 18, color: "#143625", fontWeight: 700, letterSpacing: 0.5 }}>{team.name}</div>
           {!expanded && previewText && (
             <div style={{ fontSize: 11, color: "#888", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {previewText}
@@ -568,6 +567,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [liveScores, setLiveScores] = useState({});
   const [cutHappened, setCutHappened] = useState(false);
   const [worstMadeCut, setWorstMadeCut] = useState(null);
+  const [worstMadeCutName, setWorstMadeCutName] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -633,6 +633,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       setLiveScores(data.golfers || {});
       setCutHappened(data.cutHappened || false);
       setWorstMadeCut(data.worstMadeCutScore ?? null);
+      setWorstMadeCutName(data.worstMadeCutName ?? null);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     setLoading(false);
@@ -683,11 +684,10 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e8dfc4" }}>
       <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57" }}>
-        <div style={{ fontSize: 12, fontFamily: "Georgia, serif", color: "#FCE300", letterSpacing: 4, textTransform: "uppercase", marginBottom: 2 }}>
+        <div style={{ fontSize: 12, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: "#FCE300", letterSpacing: 4, textTransform: "uppercase", marginBottom: 2 }}>
           <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color="#FCE300" align="center" />
         </div>
-        <h1 style={{ fontFamily: "Georgia, serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 400, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
-        {cutHappened && worstMadeCut !== null && <div style={{ fontSize: 12, color: "#666" }}>Cut made · Penalty: <span style={{ color: "#888" }}>{worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut}</span></div>}
+        <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 400, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
@@ -719,9 +719,14 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
         <div style={{ marginTop: 20, fontSize: 12, color: "#42946B", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            Scores update every 5 minutes <span style={{ margin: "0 6px" }}>|</span> <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#42946B", textDecoration: "underline" }}>Rules</a>
+            {cutHappened && worstMadeCut !== null && worstMadeCutName && (
+              <>Lowest made cut score: {worstMadeCutName} ({worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut})</>
+            )}
           </div>
-          <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#42946B", textDecoration: "underline", cursor: "pointer" }}>Admin</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#42946B", display: "flex", alignItems: "center" }}><GrDocumentText size={16} /></a>
+            <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#42946B", cursor: "pointer", display: "flex", alignItems: "center" }}><GrSecure size={16} /></a>
+          </div>
         </div>
       </div>
 
