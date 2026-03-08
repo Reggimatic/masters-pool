@@ -10,10 +10,20 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
 
+const ESPN_FLAG_CODES = {
+  NI: "nir", ENG: "eng", SCO: "sco", WAL: "wal"
+};
+
 function countryFlag(code) {
-  if (!code) return "";
+  if (!code) return null;
   const upper = code.toUpperCase().trim();
-  if (upper.length !== 2) return "";
+  if (!upper) return null;
+  const espnCode = ESPN_FLAG_CODES[upper];
+  if (espnCode) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={`https://a.espncdn.com/combiner/i?img=/i/teamlogos/countries/500/${espnCode}.png&h=40&w=40`} alt={upper} style={{ width: 15, height: 15, objectFit: "contain" }} />;
+  }
+  if (upper.length !== 2) return null;
   return String.fromCodePoint(
     ...upper.split("").map(c => 0x1F1E6 + c.charCodeAt(0) - 65)
   );
@@ -170,13 +180,15 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped }) {
       background: (isDropped || isCut) ? "#E8E8E8" : "transparent",
       borderBottom: "1px solid #D8D8D8"
     }}>
-      <span style={{ fontSize: 13, color: "#408C64", minWidth: 24, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0 }}>
+      <span style={{ fontSize: 13, color: "#408C64", minWidth: 34, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
         {isCut || isPenalty ? "—" : (golfer.position || "—")}
+        {!isCut && !isPenalty && golfer.positionChange === "up" && <span style={{ color: "#2E7450", fontSize: 8, lineHeight: 1 }}>▲</span>}
+        {!isCut && !isPenalty && golfer.positionChange === "down" && <span style={{ color: "#BA0C2F", fontSize: 8, lineHeight: 1 }}>▼</span>}
       </span>
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
       <span style={{ flex: 1, fontSize: 13, color: isCut ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (isCut || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isPenalty ? "Missed cut penalty" : golfer.name}
-        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(withdrawn)" : "(missed cut)"}</span>}
+        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(WD)" : "(CUT)"}</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
         {!isCut && !isPenalty && golfer.today !== null && golfer.today !== undefined
@@ -198,7 +210,7 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped }) {
 function GolferRowHeader() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 6px 12px", borderBottom: "2px solid #1a472a" }}>
-      <span style={{ fontSize: 12, color: "#888", minWidth: 24, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>POS</span>
+      <span style={{ fontSize: 12, color: "#888", minWidth: 34, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>POS</span>
       <span style={{ fontSize: 12, color: "#888", minWidth: 20, flexShrink: 0 }}></span>
       <span style={{ flex: 1, fontSize: 12, color: "#888", fontWeight: 600, letterSpacing: 1 }}>PLAYER</span>
       <span style={{ fontSize: 10, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>TODAY</span>
@@ -238,7 +250,10 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
   const totalLabel = total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
   const totalColor = total < 0 ? "#BA0C2F" : "#2E7450";
   const formatScore = (s) => s === null || s === undefined ? "" : s === 0 ? "E" : s > 0 ? `+${s}` : `${s}`;
-  const previewText = scoringGolfers.map(g => g.name.split(" ").pop()).join(", ");
+  const previewItems = scoringGolfers.map((g, i) => {
+    const lastName = g.name.split(" ").pop();
+    return <span key={i}>{i > 0 && ", "}{lastName}{g.positionChange === "up" && <span style={{ color: "#2E7450", fontSize: 8 }}> ▲</span>}{g.positionChange === "down" && <span style={{ color: "#BA0C2F", fontSize: 8 }}> ▼</span>}</span>;
+  });
 
   return (
     <div style={{ background: expanded ? "#fff" : "#E8E8E8", borderRadius: 7, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
@@ -253,9 +268,9 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: expanded ? 24 : 18, color: "#143625", fontWeight: 700, letterSpacing: 0.5 }}>{team.name}</div>
-          {!expanded && previewText && (
+          {!expanded && previewItems.length > 0 && (
             <div style={{ fontSize: 11, color: "#888", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {previewText}
+              {previewItems}
             </div>
           )}
         </div>
@@ -829,7 +844,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false };
+      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false };
     });
     let total = 0;
     if (!cutHappened) {
@@ -873,9 +888,12 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color="#FCE300" style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} />
           {picks.length > 0 && (
-            <button onClick={() => setShowChart(!showChart)} style={{ background: showChart ? "transparent" : "rgb(26, 68, 46)", border: "1px solid rgb(51, 124, 87)", color: showChart ? "#5BD397" : "#ffffff", borderRadius: 5, padding: "5px 12px", fontSize: 11, cursor: "pointer", letterSpacing: 0.5 }}>
-              {showChart ? "Hide Event Flow" : "Show Event Flow"}
-            </button>
+            <div onClick={() => setShowChart(!showChart)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+              <span style={{ fontSize: 13, color: "#5BD397", letterSpacing: 0.5 }}>Tournament Flow</span>
+              <div style={{ width: 32, height: 18, borderRadius: 9, background: showChart ? "#5BD397" : "rgb(51, 124, 87)", position: "relative", transition: "background 0.2s" }}>
+                <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: showChart ? 16 : 2, transition: "left 0.2s" }} />
+              </div>
+            </div>
           )}
         </div>
         {error && <div style={{ background: "rgba(224,82,82,0.1)", border: "1px solid #e05252", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 13, color: "#e05252" }}>{error}</div>}

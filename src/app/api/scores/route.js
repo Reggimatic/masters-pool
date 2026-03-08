@@ -164,6 +164,35 @@ export async function POST(request) {
     });
   }
 
+  // Compute previous-round positions for position change arrows
+  const prevPositionMap = new Map();
+  if (round >= 2) {
+    const prevRoundScores = competitors
+      .filter((c) => {
+        const ls = c.linescores || [];
+        // Must have completed at least round-1
+        const prevRound = ls.find((l) => l.period === round - 1);
+        return prevRound && prevRound.displayValue != null && prevRound.displayValue !== "";
+      })
+      .map((c) => {
+        const ls = c.linescores || [];
+        let cumScore = 0;
+        for (let r = 1; r < round; r++) {
+          const rs = ls.find((l) => l.period === r);
+          if (rs?.displayValue != null) cumScore += parseScore(String(rs.displayValue)) || 0;
+        }
+        const name = c.athlete?.displayName || c.athlete?.shortName || "";
+        return { name: normalize(name), score: cumScore };
+      })
+      .sort((a, b) => a.score - b.score);
+
+    prevRoundScores.forEach((entry, idx) => {
+      const firstWithScore = prevRoundScores.findIndex((x) => x.score === entry.score);
+      const pos = firstWithScore + 1;
+      prevPositionMap.set(entry.name, pos);
+    });
+  }
+
   // Build golfer results
   const golfers = {};
   for (const name of golferNames) {
@@ -233,7 +262,16 @@ export async function POST(request) {
 
     const position = positionMap.get(norm) || c.status?.position?.displayName || null;
 
-    golfers[name] = { relative, today, thru, position, missedCut, withdrawn, nineScores };
+    // Position change: compare current numeric position to previous round
+    let positionChange = null;
+    const currentPos = parseInt(String(position).replace("T", ""), 10);
+    const prevPos = prevPositionMap.get(norm);
+    if (!isNaN(currentPos) && prevPos) {
+      if (currentPos < prevPos) positionChange = "up";
+      else if (currentPos > prevPos) positionChange = "down";
+    }
+
+    golfers[name] = { relative, today, thru, position, positionChange, missedCut, withdrawn, nineScores };
   }
 
   return Response.json({
