@@ -198,7 +198,7 @@ export async function POST(request) {
       if (front9.length === 9) {
         const front9Rel = front9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
         cumulative += front9Rel;
-        nineScores.push({ label: `R${r}F`, cumulative, holes: 9 });
+        nineScores.push({ label: `R${r}-Out`, cumulative, holes: 9 });
       } else if (front9.length > 0) {
         // Partial front 9 — in progress, don't plot
         break;
@@ -209,7 +209,7 @@ export async function POST(request) {
       if (back9.length === 9) {
         const back9Rel = back9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
         cumulative += back9Rel;
-        nineScores.push({ label: `R${r}B`, cumulative, holes: 18 });
+        nineScores.push({ label: `R${r}-Tot`, cumulative, holes: 18 });
       } else {
         // Partial back 9 — in progress, don't plot
         break;

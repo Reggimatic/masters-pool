@@ -149,7 +149,7 @@ function NextUpdateTimer({ lastUpdated, onRefresh }) {
   return (
     <span style={{ color: "#5BD397", fontSize: 12 }}>
       Next update: {mins}m
-      <button onClick={onRefresh} style={{ background: "rgb(26, 68, 46)", border: "1px solid rgb(20, 54, 37)", color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
+      <button onClick={onRefresh} style={{ background: "rgb(26, 68, 46)", border: "1px solid rgb(51, 124, 87)", color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
     </span>
   );
 }
@@ -208,7 +208,7 @@ function GolferRowHeader() {
   );
 }
 
-function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl }) {
+function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor }) {
   const madeCut = team.golfers.filter(g => !g.missedCut);
   const missedCut = team.golfers.filter(g => g.missedCut);
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
@@ -242,7 +242,8 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
 
   return (
     <div style={{ background: expanded ? "#fff" : "#E8E8E8", borderRadius: 7, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
-      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "#E8E8E8", borderRadius: expanded ? "7px 7px 0 0" : 7 }}>
+      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "#E8E8E8", borderRadius: expanded ? "7px 7px 0 0" : 7 }}>
+        <div style={{ width: 7, height: 44, borderRadius: 2, background: chartColor, flexShrink: 0, marginLeft: -5, marginRight: -2 }} />
         {avatarUrl ? (
           <img src={avatarUrl} alt={team.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
         ) : (
@@ -605,6 +606,13 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     chartData.push(point);
   }
 
+  // Add "Now" point with current live totals (unless tournament is complete — all 8 checkpoints plotted)
+  if (plottableCheckpoints < 8) {
+    const nowPoint = { checkpoint: "LIVE" };
+    teams.forEach(team => { nowPoint[team.name] = team.total; });
+    chartData.push(nowPoint);
+  }
+
   const teamNames = teams.map(t => t.name);
 
   const formatScore = (val) => {
@@ -617,11 +625,15 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "16px 8px 8px", marginBottom: 12 }}>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
-          <XAxis dataKey="checkpoint" tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={{ stroke: "#337B57" }} tickLine={false} />
+          <XAxis dataKey="checkpoint" tick={({ x, y, payload }) => (
+            <text x={x} y={y + 12} textAnchor="middle" fontSize={11} fill={payload.value === "LIVE" ? "rgb(252, 227, 0)" : "#e8dfc4"} fontWeight={payload.value === "LIVE" ? 700 : 400}>
+              {payload.value}
+            </text>
+          )} axisLine={{ stroke: "#337B57" }} tickLine={false} />
           <YAxis tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatScore} width={35} reversed />
           <Tooltip
-            contentStyle={{ background: "#143625", border: "1px solid #337B57", borderRadius: 8, fontSize: 12 }}
-            labelStyle={{ color: "#FCE300", marginBottom: 4 }}
+            contentStyle={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12 }}
+            labelStyle={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}
             formatter={(value, name) => [formatScore(value), name]}
             itemSorter={(item) => item.value}
           />
@@ -689,7 +701,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [showChart, setShowChart] = useState(false);
+  const [showChart, setShowChart] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
@@ -807,17 +819,17 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
         <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
           <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color="#FCE300" align="center" />
         </div>
-        <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 400, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
+        <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color="#FCE300" style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} />
-          <div style={{ fontSize: 12 }}>
-            {loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
-              : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
-              : <span style={{ color: "#555" }}>—</span>}
-          </div>
+          {picks.length > 0 && (
+            <button onClick={() => setShowChart(!showChart)} style={{ background: showChart ? "transparent" : "rgb(26, 68, 46)", border: "1px solid rgb(51, 124, 87)", color: showChart ? "#5BD397" : "#ffffff", borderRadius: 5, padding: "5px 12px", fontSize: 11, cursor: "pointer", letterSpacing: 0.5 }}>
+              {showChart ? "Hide Event Flow" : "Show Event Flow"}
+            </button>
+          )}
         </div>
         {error && <div style={{ background: "rgba(224,82,82,0.1)", border: "1px solid #e05252", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 13, color: "#e05252" }}>{error}</div>}
 
@@ -828,27 +840,29 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>
-              <button onClick={() => setShowChart(!showChart)} style={{ background: showChart ? "rgb(26, 68, 46)" : "transparent", border: "1px solid rgb(51, 124, 87)", color: showChart ? "#ffffff" : "#5BD397", borderRadius: 5, padding: "5px 12px", fontSize: 11, cursor: "pointer", letterSpacing: 0.5 }}>
-                {showChart ? "Hide Trend" : "Score Trend"}
-              </button>
-            </div>
             {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} />}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+              <div style={{ color: "#5BD397" }}>
+                {cutHappened && worstMadeCut !== null && worstMadeCutName && (
+                  <>Lowest made cut score: {worstMadeCutName} ({worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut})</>
+                )}
+              </div>
+              <div>
+                {loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
+                  : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
+                  : <span style={{ color: "#555" }}>—</span>}
+              </div>
+            </div>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} />
+                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} />
               </div>
             ))}
           </div>
         )}
 
         <div style={{ marginTop: 14, fontSize: 12, color: "#5BD397", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            {cutHappened && worstMadeCut !== null && worstMadeCutName && (
-              <>Lowest made cut score: {worstMadeCutName} ({worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut}) <span style={{ margin: "0 6px" }}>|</span></>
-            )}
-            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
-          </div>
+          <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
           <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "rgb(51, 124, 87)", cursor: "pointer", display: "flex", alignItems: "center" }}><IoSettingsOutline size={18} /></a>
         </div>
       </div>
