@@ -841,10 +841,10 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} />}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
               <div style={{ color: "#5BD397" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
-                  <>Lowest made cut score: {worstMadeCutName} ({worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut})</>
+                  <>Lowest made cut score: {worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut} ({worstMadeCutName})</>
                 )}
               </div>
               <div>
