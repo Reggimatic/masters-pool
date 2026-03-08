@@ -705,8 +705,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
         {picks.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: 56, marginBottom: 16 }}>⛳</div>
-            <p style={{ color: "#666", fontSize: 16 }}>No picks entered yet for this pool.</p>
-            <p style={{ color: "#555", fontSize: 14 }}>Click <strong style={{ color: GOLD }}>Admin</strong> below to add participants.</p>
+            <p style={{ color: "#ffffff", fontSize: 16 }}>No picks entered yet for this pool.</p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
