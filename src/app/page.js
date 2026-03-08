@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { GrRefresh } from "react-icons/gr";
 import { IoSettingsOutline } from "react-icons/io5";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
@@ -157,7 +157,7 @@ function NextUpdateTimer({ lastUpdated, onRefresh }) {
   }, [lastUpdated]);
   const mins = Math.ceil(remaining / 60);
   return (
-    <span style={{ color: "#5BD397", fontSize: 12 }}>
+    <span style={{ color: "#5BD397", fontSize: 11 }}>
       Next update: {mins}m
       <button onClick={onRefresh} style={{ background: "rgb(26, 68, 46)", border: "1px solid rgb(51, 124, 87)", color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
     </span>
@@ -593,6 +593,8 @@ function PasswordModal({ onSuccess, onClose }) {
 const TEAM_COLORS = ["#BA0C2F", "#2E7450", "#1a6dd4", "#e6a817", "#9b59b6", "#e67e22", "#1abc9c", "#e74c3c", "#3498db", "#2ecc71"];
 
 function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores }) {
+  const ALL_LABELS = ["R1-Out", "R1-Tot", "R2-Out", "R2-Tot", "R3-Out", "R3-Tot", "R4-Out", "R4-Tot"];
+
   // Determine the maximum number of 9-hole checkpoints any golfer has completed
   const allNineScores = teams.flatMap(t => t.golfers.map(g => {
     const name = g.name || g;
@@ -601,10 +603,6 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
   const maxCheckpoints = Math.max(...allNineScores.map(s => s.length), 0);
 
   if (maxCheckpoints < 1) return null;
-
-  // Build checkpoint labels from the first golfer that has the most data
-  const longestScores = allNineScores.reduce((a, b) => a.length >= b.length ? a : b, []);
-  const labels = longestScores.map(s => s.label);
 
   // Only plot a checkpoint if ALL relevant golfers across all teams have completed it
   // For R3+ checkpoints (index >= 4), only golfers who made the cut are relevant
@@ -615,8 +613,8 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     const allComplete = allGolferNames.every(name => {
       const missedCut = liveScores[name]?.missedCut ?? false;
       const withdrawn = liveScores[name]?.withdrawn ?? false;
-      if (withdrawn) return true; // withdrawn golfers are irrelevant
-      if (isPostCut && missedCut) return true; // missed-cut golfers are irrelevant post-cut
+      if (withdrawn) return true;
+      if (isPostCut && missedCut) return true;
       const scores = liveScores[name]?.nineScores || [];
       return scores.length > i;
     });
@@ -626,14 +624,18 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
 
   if (plottableCheckpoints < 1) return null;
 
+  // Numeric x positions: Start=0, R1-Out=1, R1-Tot=2, R2-Out=3, R2-Tot=4, R3-Out=5, R3-Tot=6, R4-Out=7, R4-Tot=8
+  const CHECKPOINT_X = [1, 2, 3, 4, 5, 6, 7, 8];
+  const ROUND_TICKS = [0, 2, 4, 6, 8]; // Start, R1, R2, R3, R4
+  const ROUND_LABELS = { 0: "Start", 2: "R1", 4: "R2", 6: "R3", 8: "R4" };
+
   // Start with everyone at E
-  const chartData = [{ checkpoint: "Start" }];
+  const chartData = [{ x: 0 }];
   teams.forEach(team => { chartData[0][team.name] = 0; });
 
   // Build data for each plottable checkpoint
   for (let i = 0; i < plottableCheckpoints; i++) {
-    const label = labels[i] || `${i + 1}`;
-    const point = { checkpoint: label };
+    const point = { x: CHECKPOINT_X[i] };
 
     teams.forEach(team => {
       const golferScores = team.golfers.map(g => {
@@ -643,7 +645,6 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
         return { name, score: scores[i]?.cumulative ?? null, missedCut };
       });
 
-      // Determine if this checkpoint is post-cut (R3 or later = index >= 4)
       const isCutCheckpoint = i >= 4 && cutHappened;
       const eligible = isCutCheckpoint ? golferScores.filter(g => !g.missedCut) : golferScores;
       const withScores = eligible.filter(g => g.score !== null);
@@ -655,7 +656,6 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
       let total = scoring.reduce((sum, g) => sum + g.score, 0);
       if (isCutCheckpoint) {
         const penaltySlots = Math.max(0, 4 - scoring.length);
-        // Compute worst-made-cut score at this specific checkpoint
         const worstAtCheckpoint = allMadeCutNineScores.reduce((max, scores) => {
           const val = scores[i];
           return val !== undefined && val > max ? val : max;
@@ -668,12 +668,26 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     chartData.push(point);
   }
 
-  // Add "Now" point with current live totals (unless tournament is complete — all 8 checkpoints plotted)
-  if (plottableCheckpoints < 8) {
-    const nowPoint = { checkpoint: "LIVE" };
+  // Add "LIVE" point halfway between last completed checkpoint and next
+  const isComplete = plottableCheckpoints >= 8;
+  let liveX = null;
+  if (!isComplete) {
+    const lastX = plottableCheckpoints > 0 ? CHECKPOINT_X[plottableCheckpoints - 1] : 0;
+    const nextX = CHECKPOINT_X[plottableCheckpoints] ?? lastX + 1;
+    liveX = (lastX + nextX) / 2;
+    const nowPoint = { x: liveX };
     teams.forEach(team => { nowPoint[team.name] = team.total; });
     chartData.push(nowPoint);
   }
+
+  // Ensure all round-end positions exist as data points so ticks always render
+  const existingXs = new Set(chartData.map(d => d.x));
+  for (const rx of ROUND_TICKS) {
+    if (!existingXs.has(rx)) chartData.push({ x: rx });
+  }
+
+  // Sort by x so recharts plots in order
+  chartData.sort((a, b) => a.x - b.x);
 
   const teamNames = teams.map(t => t.name);
 
@@ -683,25 +697,46 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     return `${val}`;
   };
 
+  // Build tick values: round markers + LIVE
+  const tickValues = [...ROUND_TICKS, ...(liveX !== null ? [liveX] : [])];
+
   return (
     <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "16px 8px 8px", marginBottom: 12 }}>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
-          <XAxis dataKey="checkpoint" tick={({ x, y, payload }) => (
-            <text x={x} y={y + 12} textAnchor="middle" fontSize={11} fill={payload.value === "LIVE" ? "rgb(252, 227, 0)" : "#e8dfc4"} fontWeight={payload.value === "LIVE" ? 700 : 400}>
-              {payload.value}
-            </text>
-          )} axisLine={{ stroke: "#337B57" }} tickLine={false} />
+          <XAxis xAxisId="bottom" dataKey="x" type="number" domain={[0, 8]} ticks={ROUND_TICKS} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
+            const label = ROUND_LABELS[payload.value];
+            if (!label) return null;
+            return (
+              <text x={x} y={y + 12} textAnchor="middle" fontSize={11} fill="#e8dfc4">
+                {label}
+              </text>
+            );
+          }} axisLine={{ stroke: "#337B57" }} tickLine={false} />
+          <XAxis xAxisId="top" dataKey="x" type="number" domain={[0, 8]} orientation="top" ticks={liveX !== null ? [liveX] : []} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
+            if (payload.value !== liveX) return null;
+            return (
+              <text x={x} y={y - 4} textAnchor="middle" fontSize={11} fill="rgb(252, 227, 0)" fontWeight={700}>
+                LIVE
+              </text>
+            );
+          }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatScore} width={35} reversed />
           <Tooltip
             contentStyle={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12 }}
             labelStyle={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}
             formatter={(value, name) => [formatScore(value), name]}
+            labelFormatter={(val) => {
+              const ALL_TOOLTIP_LABELS = { 0: "Start", 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "R4" };
+              return ALL_TOOLTIP_LABELS[val] || (val === liveX ? "LIVE" : "");
+            }}
             itemSorter={(item) => item.value}
           />
+          {liveX !== null && <ReferenceLine xAxisId="bottom" x={liveX} stroke="rgb(252, 227, 0)" strokeDasharray="4 4" strokeOpacity={0.4} />}
           {teamNames.map((name, i) => (
             <Line
               key={name}
+              xAxisId="bottom"
               type="monotone"
               dataKey={name}
               stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
