@@ -31,6 +31,7 @@ function RulesContent() {
           <li>If a team has less than 4 golfers make the cut, then any empty spots in their top 4 will be assigned the lowest score of all golfers who did make the cut.</li>
           <li>For example, if a team has only 2 golfers make the cut, their total = (golfer 1 score) + (golfer 2 score) + (worst made cut score) + (worst made cut score).</li>
           <li>For the purposes of scoring, players who withdraw are treated the same as players who miss the cut.</li>
+          <li>If multiple golfers finish regulation tied for the lead, any extra holes played do not count toward pool scoring, regardless of the playoff format.</li>
         </ul>
 
         <div style={{ marginTop: 32, textAlign: "center" }}>
