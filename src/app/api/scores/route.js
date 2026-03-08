@@ -44,6 +44,9 @@ export async function POST(request) {
     round = Math.max(round, competition.status.period);
   }
 
+  // Cap round at 4 — playoff holes should not affect pool scoring
+  if (round > 4) round = 4;
+
   // Build a name-lookup map: normalize names for fuzzy matching
   const normalize = (n) =>
     n?.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
@@ -60,11 +63,28 @@ export async function POST(request) {
     }
   });
 
-  // Determine positions with tie detection
-  // ESPN competitors are sorted by score, so we can derive position
+  // Compute regulation score (R1-R4 only, excluding playoff holes)
+  const getRegulationScore = (c) => {
+    const ls = c.linescores || [];
+    let total = 0;
+    let hasAny = false;
+    for (let r = 1; r <= 4; r++) {
+      const rs = ls.find((l) => l.period === r);
+      if (rs?.displayValue != null && rs.displayValue !== "") {
+        const val = parseScore(String(rs.displayValue));
+        if (val !== null) {
+          total += val;
+          hasAny = true;
+        }
+      }
+    }
+    return hasAny ? total : null;
+  };
+
+  // Determine positions with tie detection using regulation scores only
   const sortedCompetitors = [...competitors].sort((a, b) => {
-    const aScore = parseScore(a.score);
-    const bScore = parseScore(b.score);
+    const aScore = getRegulationScore(a);
+    const bScore = getRegulationScore(b);
     if (aScore === null && bScore === null) return 0;
     if (aScore === null) return 1;
     if (bScore === null) return -1;
@@ -73,16 +93,15 @@ export async function POST(request) {
 
   const positionMap = new Map();
   sortedCompetitors.forEach((c, idx) => {
-    const score = parseScore(c.score);
-    // Count how many have the same score for tie detection
+    const score = getRegulationScore(c);
     let pos = idx + 1;
     if (score !== null) {
       const firstWithScore = sortedCompetitors.findIndex(
-        (x) => parseScore(x.score) === score
+        (x) => getRegulationScore(x) === score
       );
       pos = firstWithScore + 1;
       const countWithScore = sortedCompetitors.filter(
-        (x) => parseScore(x.score) === score
+        (x) => getRegulationScore(x) === score
       ).length;
       const name = c.athlete?.displayName || c.athlete?.shortName || "";
       positionMap.set(normalize(name), countWithScore > 1 ? `T${pos}` : `${pos}`);
@@ -129,11 +148,11 @@ export async function POST(request) {
     cutHappened = true;
     const madeCutCompetitors = competitors.filter((c) => didMakeCut(c));
     const madeCutScores = madeCutCompetitors
-      .map((c) => parseScore(c.score))
+      .map((c) => getRegulationScore(c))
       .filter((s) => s !== null);
     if (madeCutScores.length > 0) {
       worstMadeCutScore = Math.max(...madeCutScores);
-      const worstPlayer = madeCutCompetitors.find((c) => parseScore(c.score) === worstMadeCutScore);
+      const worstPlayer = madeCutCompetitors.find((c) => getRegulationScore(c) === worstMadeCutScore);
       worstMadeCutName = worstPlayer?.athlete?.displayName || worstPlayer?.athlete?.shortName || null;
     }
   }
@@ -205,7 +224,7 @@ export async function POST(request) {
     }
 
     const { competitor: c } = match;
-    const relative = parseScore(c.score);
+    const relative = getRegulationScore(c);
 
     // Compute "today" from the current round's linescore only
     const linescores = c.linescores || [];
