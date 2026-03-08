@@ -21,15 +21,16 @@ function RulesContent() {
         <ul style={{ listStyle: "disc", paddingLeft: 20, fontSize: 15, lineHeight: 2, color: "#e9ffc2" }}>
           <li>A random drawing will be conducted to determine the draft order.</li>
           <li>The draft will use a snake format.</li>
-          <li>Each person will draft six golfers for their team.</li>
+          <li>Each person will draft 6 golfers for their team.</li>
         </ul>
 
         <h2 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: 20, color: "#ffffff", fontWeight: 400, textTransform: "uppercase", marginTop: 28, marginBottom: 12 }}>Scoring</h2>
         <ul style={{ listStyle: "disc", paddingLeft: 20, fontSize: 15, lineHeight: 2, color: "#e9ffc2" }}>
-          <li>The top four golfers count toward the score for each team. The bottom two are dropped.</li>
+          <li>The top 4 golfers count toward the score for each team. The bottom 2 are dropped.</li>
           <li>Once the cut takes place, only golfers who make the cut count toward their team's total.</li>
-          <li>If a team has less than four golfers make the cut, then any empty spots in their top four will be assigned the lowest score of all golfers who did make the cut.</li>
+          <li>If a team has less than 4 golfers make the cut, then any empty spots in their top 4 will be assigned the lowest score of all golfers who did make the cut.</li>
           <li>For example, if a team has only 2 golfers make the cut, their total = (golfer 1 score) + (golfer 2 score) + (worst made cut score) + (worst made cut score).</li>
+          <li>For the purposes of scoring, players who withdraw are treated the same as players who miss the cut.</li>
         </ul>
 
         <div style={{ marginTop: 32, textAlign: "center" }}>
