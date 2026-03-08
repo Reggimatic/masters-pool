@@ -12,7 +12,7 @@ function RulesContent() {
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e9ffc2" }}>
       <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57" }}>
-        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>Put it in the jar.</div>
+        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", fontWeight: 300, marginBottom: 2 }}>An office pool unlike any other.</div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Rules</h1>
       </div>
 
