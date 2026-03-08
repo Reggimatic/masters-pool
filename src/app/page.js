@@ -161,7 +161,7 @@ function ScoreDisplay({ relative, isScoring }) {
   return <span style={{ color, fontWeight: isScoring ? 700 : 400 }}>{label}</span>;
 }
 
-function GolferRow({ golfer, isCut, isPenalty, isDropped }) {
+function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped }) {
   const flag = isPenalty ? "" : countryFlag(golfer.country);
   return (
     <div style={{
@@ -176,7 +176,7 @@ function GolferRow({ golfer, isCut, isPenalty, isDropped }) {
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
       <span style={{ flex: 1, fontSize: 13, color: isCut ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (isCut || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isPenalty ? "Missed cut penalty" : golfer.name}
-        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>(missed cut)</span>}
+        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(withdrawn)" : "(missed cut)"}</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
         {!isCut && !isPenalty && golfer.today !== null && golfer.today !== undefined
@@ -270,7 +270,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
             <GolferRowHeader />
             {scoringGolfers.map(g => <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} isDropped={false} />)}
             {Array.from({ length: penaltySlots }).map((_, i) => <GolferRow key={`penalty-${i}`} golfer={{ relative: worstMadeCut }} isCut={false} isPenalty={true} isDropped={false} />)}
-            {droppedGolfers.map(g => <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isPenalty={false} isDropped={true} />)}
+            {droppedGolfers.map(g => <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} />)}
           </div>
         </div>
       </div>
@@ -282,7 +282,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
 
 const COUNTRY_HINT = "2-letter code: US, GB, AU, IE, ZA, ES, JP, SE, NO, DE, CA, AR, KR...";
 
-function AdminPanel({ picks, tournament, group, onSave, onClose, avatars, onAvatarsChange }) {
+function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose, avatars, onAvatarsChange, onWithdrawalsChange }) {
   const emptyGolfer = { name: "", country: "" };
   const [tab, setTab] = useState("picks");
   const [teams, setTeams] = useState(
@@ -328,6 +328,34 @@ function AdminPanel({ picks, tournament, group, onSave, onClose, avatars, onAvat
   const [newTournamentName, setNewTournamentName] = useState("");
   const [newGroupId, setNewGroupId] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
+
+  // Withdrawals
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [newWithdrawal, setNewWithdrawal] = useState("");
+
+  useEffect(() => {
+    if (tab === "withdrawals") {
+      (async () => {
+        const { data } = await supabase.from("withdrawals").select("*").eq("tournament", tournamentName);
+        setWithdrawals(data || []);
+      })();
+    }
+  }, [tab, tournamentName]);
+
+  const addWithdrawal = async () => {
+    if (!newWithdrawal.trim()) return;
+    await supabase.from("withdrawals").insert({ tournament: tournamentName, golfer_name: newWithdrawal.trim() });
+    setNewWithdrawal("");
+    const { data } = await supabase.from("withdrawals").select("*").eq("tournament", tournamentName);
+    setWithdrawals(data || []);
+    if (onWithdrawalsChange) onWithdrawalsChange();
+  };
+
+  const removeWithdrawal = async (golferName) => {
+    await supabase.from("withdrawals").delete().eq("tournament", tournamentName).eq("golfer_name", golferName);
+    setWithdrawals(w => w.filter(x => x.golfer_name !== golferName));
+    if (onWithdrawalsChange) onWithdrawalsChange();
+  };
 
   useEffect(() => {
     if (tab === "manage") {
@@ -411,7 +439,8 @@ function AdminPanel({ picks, tournament, group, onSave, onClose, avatars, onAvat
         {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid rgba(201,168,76,0.15)", marginBottom: 20 }}>
           <button style={tabStyle(tab === "picks")} onClick={() => setTab("picks")}>Picks</button>
-          <button style={tabStyle(tab === "manage")} onClick={() => setTab("manage")}>Tournaments & Groups</button>
+          <button style={tabStyle(tab === "withdrawals")} onClick={() => setTab("withdrawals")}>Withdrawals</button>
+          <button style={tabStyle(tab === "manage")} onClick={() => setTab("manage")}>Manage</button>
         </div>
 
         {tab === "picks" && (
@@ -459,6 +488,22 @@ function AdminPanel({ picks, tournament, group, onSave, onClose, avatars, onAvat
               <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: GOLD, border: "none", color: "#0d1f14", borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>{saving ? "Saving..." : "Save Picks"}</button>
             </div>
           </>
+        )}
+
+        {tab === "withdrawals" && (
+          <div>
+            <p style={{ color: "#555", fontSize: 11, marginBottom: 16 }}>Mark golfers as withdrawn for {tournamentName}. Withdrawn golfers are treated like missed-cut players for scoring.</p>
+            {withdrawals.map(w => (
+              <div key={w.golfer_name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.08)" }}>
+                <span style={{ color: "#e8dfc4", fontSize: 14 }}>{w.golfer_name}</span>
+                <button onClick={() => removeWithdrawal(w.golfer_name)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Remove</button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="Golfer name (e.g. Rory McIlroy)" value={newWithdrawal} onChange={e => setNewWithdrawal(e.target.value)} onKeyDown={e => e.key === "Enter" && addWithdrawal()} />
+              <button onClick={addWithdrawal} style={{ background: GOLD, border: "none", color: "#0d1f14", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Add</button>
+            </div>
+          </div>
         )}
 
         {tab === "manage" && (
@@ -554,6 +599,8 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     const isPostCut = i >= 4 && cutHappened;
     const allComplete = allGolferNames.every(name => {
       const missedCut = liveScores[name]?.missedCut ?? false;
+      const withdrawn = liveScores[name]?.withdrawn ?? false;
+      if (withdrawn) return true; // withdrawn golfers are irrelevant
       if (isPostCut && missedCut) return true; // missed-cut golfers are irrelevant post-cut
       const scores = liveScores[name]?.nineScores || [];
       return scores.length > i;
@@ -782,7 +829,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false };
+      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false };
     });
     let total = 0;
     if (!cutHappened) {
@@ -868,7 +915,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       </div>
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
-      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} onSave={savePicks} onClose={() => setShowAdmin(false)} avatars={avatars} onAvatarsChange={setAvatars} />}
+      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} onSave={savePicks} onClose={() => setShowAdmin(false)} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
     </div>
   );
 }

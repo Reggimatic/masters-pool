@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase";
+
 export async function POST(request) {
   const { golferNames, tournamentName } = await request.json();
 
@@ -87,6 +89,13 @@ export async function POST(request) {
     }
   });
 
+  // Fetch manual withdrawals from Supabase
+  const { data: withdrawalData } = await supabase
+    .from("withdrawals")
+    .select("golfer_name")
+    .eq("tournament", tournamentName);
+  const withdrawnNames = new Set((withdrawalData || []).map((w) => normalize(w.golfer_name)));
+
   // Determine cut status
   let cutHappened = false;
   let worstMadeCutScore = null;
@@ -98,8 +107,10 @@ export async function POST(request) {
     return status === "cut" || status === "missed cut";
   });
 
-  // Helper: determine if a competitor made the cut
+  // Helper: determine if a competitor made the cut (and is still active)
   const didMakeCut = (c) => {
+    const name = c.athlete?.displayName || c.athlete?.shortName || "";
+    if (withdrawnNames.has(normalize(name))) return false;
     const status = c.status?.type?.name?.toLowerCase() || "";
     if (status === "cut" || status === "missed cut") return false;
     if (status === "wd" || status === "dq") return false;
@@ -216,12 +227,13 @@ export async function POST(request) {
       }
     }
 
-    // Missed cut detection
-    const missedCut = cutHappened && !didMakeCut(c);
+    // Missed cut / withdrawn detection
+    const withdrawn = withdrawnNames.has(norm);
+    const missedCut = (cutHappened && !didMakeCut(c)) || withdrawn;
 
     const position = positionMap.get(norm) || c.status?.position?.displayName || null;
 
-    golfers[name] = { relative, today, thru, position, missedCut, nineScores };
+    golfers[name] = { relative, today, thru, position, missedCut, withdrawn, nineScores };
   }
 
   return Response.json({
