@@ -127,6 +127,32 @@ export async function POST(request) {
     }
   }
 
+  // Compute 9-hole checkpoint scores for all made-cut competitors (for chart penalty calculation)
+  const allMadeCutNineScores = [];
+  if (cutHappened) {
+    competitors.filter((c) => didMakeCut(c)).forEach((c) => {
+      const ls = c.linescores || [];
+      const scores = [];
+      let cum = 0;
+      for (let r = 1; r <= 4; r++) {
+        const rs = ls.find((l) => l.period === r);
+        const holes = rs?.linescores || [];
+        if (holes.length === 0) break;
+        const front9 = holes.slice(0, 9);
+        const back9 = holes.slice(9, 18);
+        if (front9.length === 9) {
+          cum += front9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+          scores.push(cum);
+        } else break;
+        if (back9.length === 9) {
+          cum += back9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+          scores.push(cum);
+        } else break;
+      }
+      allMadeCutNineScores.push(scores);
+    });
+  }
+
   // Build golfer results
   const golfers = {};
   for (const name of golferNames) {
@@ -158,12 +184,44 @@ export async function POST(request) {
       // 0 holes = not started, leave as null
     }
 
+    // Compute cumulative score at each 9-hole checkpoint
+    const nineScores = [];
+    let cumulative = 0;
+    for (let r = 1; r <= 4; r++) {
+      const rs = linescores.find((ls) => ls.period === r);
+      const holes = rs?.linescores || [];
+      if (holes.length === 0) break;
+
+      const front9 = holes.slice(0, 9);
+      const back9 = holes.slice(9, 18);
+
+      if (front9.length === 9) {
+        const front9Rel = front9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+        cumulative += front9Rel;
+        nineScores.push({ label: `R${r}F`, cumulative, holes: 9 });
+      } else if (front9.length > 0) {
+        // Partial front 9 — in progress, don't plot
+        break;
+      } else {
+        break;
+      }
+
+      if (back9.length === 9) {
+        const back9Rel = back9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+        cumulative += back9Rel;
+        nineScores.push({ label: `R${r}B`, cumulative, holes: 18 });
+      } else {
+        // Partial back 9 — in progress, don't plot
+        break;
+      }
+    }
+
     // Missed cut detection
     const missedCut = cutHappened && !didMakeCut(c);
 
     const position = positionMap.get(norm) || c.status?.position?.displayName || null;
 
-    golfers[name] = { relative, today, thru, position, missedCut };
+    golfers[name] = { relative, today, thru, position, missedCut, nineScores };
   }
 
   return Response.json({
@@ -171,9 +229,18 @@ export async function POST(request) {
     cutHappened,
     worstMadeCutScore,
     worstMadeCutName,
+    allMadeCutNineScores,
     golfers,
     tournamentName: event.name || tournamentName,
   });
+}
+
+function parseRelativeHole(displayValue) {
+  if (!displayValue) return 0;
+  const s = String(displayValue).trim();
+  if (s === "E") return 0;
+  const n = parseInt(s, 10);
+  return isNaN(n) ? 0 : n;
 }
 
 function parseScore(scoreStr) {

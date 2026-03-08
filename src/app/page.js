@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { GrRefresh } from "react-icons/gr";
 import { IoSettingsOutline } from "react-icons/io5";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
@@ -526,6 +527,121 @@ function PasswordModal({ onSuccess, onClose }) {
   );
 }
 
+// ─── Score Trend Chart ───────────────────────────────────────────────────────
+
+const TEAM_COLORS = ["#BA0C2F", "#2E7450", "#1a6dd4", "#e6a817", "#9b59b6", "#e67e22", "#1abc9c", "#e74c3c", "#3498db", "#2ecc71"];
+
+function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores }) {
+  // Determine the maximum number of 9-hole checkpoints any golfer has completed
+  const allNineScores = teams.flatMap(t => t.golfers.map(g => {
+    const name = g.name || g;
+    return liveScores[name]?.nineScores || [];
+  }));
+  const maxCheckpoints = Math.max(...allNineScores.map(s => s.length), 0);
+
+  if (maxCheckpoints < 1) return null;
+
+  // Build checkpoint labels from the first golfer that has the most data
+  const longestScores = allNineScores.reduce((a, b) => a.length >= b.length ? a : b, []);
+  const labels = longestScores.map(s => s.label);
+
+  // Only plot a checkpoint if ALL relevant golfers across all teams have completed it
+  // For R3+ checkpoints (index >= 4), only golfers who made the cut are relevant
+  const allGolferNames = [...new Set(teams.flatMap(t => t.golfers.map(g => g.name || g)))];
+  let plottableCheckpoints = 0;
+  for (let i = 0; i < maxCheckpoints; i++) {
+    const isPostCut = i >= 4 && cutHappened;
+    const allComplete = allGolferNames.every(name => {
+      const missedCut = liveScores[name]?.missedCut ?? false;
+      if (isPostCut && missedCut) return true; // missed-cut golfers are irrelevant post-cut
+      const scores = liveScores[name]?.nineScores || [];
+      return scores.length > i;
+    });
+    if (allComplete) plottableCheckpoints = i + 1;
+    else break;
+  }
+
+  if (plottableCheckpoints < 1) return null;
+
+  // Start with everyone at E
+  const chartData = [{ checkpoint: "Start" }];
+  teams.forEach(team => { chartData[0][team.name] = 0; });
+
+  // Build data for each plottable checkpoint
+  for (let i = 0; i < plottableCheckpoints; i++) {
+    const label = labels[i] || `${i + 1}`;
+    const point = { checkpoint: label };
+
+    teams.forEach(team => {
+      const golferScores = team.golfers.map(g => {
+        const name = g.name || g;
+        const scores = liveScores[name]?.nineScores || [];
+        const missedCut = liveScores[name]?.missedCut ?? false;
+        return { name, score: scores[i]?.cumulative ?? null, missedCut };
+      });
+
+      // Determine if this checkpoint is post-cut (R3 or later = index >= 4)
+      const isCutCheckpoint = i >= 4 && cutHappened;
+      const eligible = isCutCheckpoint ? golferScores.filter(g => !g.missedCut) : golferScores;
+      const withScores = eligible.filter(g => g.score !== null);
+      const sorted = [...withScores].sort((a, b) => a.score - b.score);
+      const scoring = sorted.slice(0, 4);
+
+      if (scoring.length === 0) return;
+
+      let total = scoring.reduce((sum, g) => sum + g.score, 0);
+      if (isCutCheckpoint) {
+        const penaltySlots = Math.max(0, 4 - scoring.length);
+        // Compute worst-made-cut score at this specific checkpoint
+        const worstAtCheckpoint = allMadeCutNineScores.reduce((max, scores) => {
+          const val = scores[i];
+          return val !== undefined && val > max ? val : max;
+        }, -Infinity);
+        const penalty = worstAtCheckpoint > -Infinity ? worstAtCheckpoint : (worstMadeCut ?? 0);
+        total += penaltySlots * penalty;
+      }
+      point[team.name] = total;
+    });
+    chartData.push(point);
+  }
+
+  const teamNames = teams.map(t => t.name);
+
+  const formatScore = (val) => {
+    if (val === 0) return "E";
+    if (val > 0) return `+${val}`;
+    return `${val}`;
+  };
+
+  return (
+    <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "16px 8px 8px", marginBottom: 12 }}>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
+          <XAxis dataKey="checkpoint" tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={{ stroke: "#337B57" }} tickLine={false} />
+          <YAxis tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatScore} width={35} reversed />
+          <Tooltip
+            contentStyle={{ background: "#143625", border: "1px solid #337B57", borderRadius: 8, fontSize: 12 }}
+            labelStyle={{ color: "#FCE300", marginBottom: 4 }}
+            formatter={(value, name) => [formatScore(value), name]}
+            itemSorter={(item) => item.value}
+          />
+          {teamNames.map((name, i) => (
+            <Line
+              key={name}
+              type="monotone"
+              dataKey={name}
+              stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
+              strokeWidth={2.5}
+              dot={{ r: 4, fill: TEAM_COLORS[i % TEAM_COLORS.length] }}
+              activeDot={{ r: 6 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
 function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left" }) {
@@ -569,9 +685,11 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [cutHappened, setCutHappened] = useState(false);
   const [worstMadeCut, setWorstMadeCut] = useState(null);
   const [worstMadeCutName, setWorstMadeCutName] = useState(null);
+  const [allMadeCutNineScores, setAllMadeCutNineScores] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
@@ -635,6 +753,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       setCutHappened(data.cutHappened || false);
       setWorstMadeCut(data.worstMadeCutScore ?? null);
       setWorstMadeCutName(data.worstMadeCutName ?? null);
+      setAllMadeCutNineScores(data.allMadeCutNineScores || []);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     setLoading(false);
@@ -709,6 +828,12 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>
+              <button onClick={() => setShowChart(!showChart)} style={{ background: showChart ? "rgb(26, 68, 46)" : "transparent", border: "1px solid rgb(51, 124, 87)", color: showChart ? "#ffffff" : "#5BD397", borderRadius: 5, padding: "5px 12px", fontSize: 11, cursor: "pointer", letterSpacing: 0.5 }}>
+                {showChart ? "Hide Trend" : "Score Trend"}
+              </button>
+            </div>
+            {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} />}
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
                 <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} />
