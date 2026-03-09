@@ -845,9 +845,10 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
     await loadPicks();
   };
 
-  const fetchScores = useCallback(async () => {
+  const fetchScores = useCallback(async (isBackground = false) => {
     if (picks.length === 0) return;
-    setLoading(true); setError(null);
+    if (!isBackground) setLoading(true);
+    setError(null);
     try {
       const allGolfers = [...new Set(picks.flatMap(p => p.golfers.map(g => g.name || g)))].sort();
       const response = await fetch("/api/scores", {
@@ -858,20 +859,26 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       const data = await response.json();
       if (data.error) throw new Error(data.error);
 
-      setLiveScores(data.golfers || {});
-      setCutHappened(data.cutHappened || false);
-      setWorstMadeCut(data.worstMadeCutScore ?? null);
-      setWorstMadeCutName(data.worstMadeCutName ?? null);
-      setAllMadeCutNineScores(data.allMadeCutNineScores || []);
+      // Only update state when data actually changes to avoid unnecessary re-renders
+      const newGolfers = data.golfers || {};
+      const newCutHappened = data.cutHappened || false;
+      const newWorstMadeCut = data.worstMadeCutScore ?? null;
+      const newWorstMadeCutName = data.worstMadeCutName ?? null;
+      const newAllMadeCutNineScores = data.allMadeCutNineScores || [];
+      setLiveScores(prev => JSON.stringify(prev) === JSON.stringify(newGolfers) ? prev : newGolfers);
+      setCutHappened(prev => prev === newCutHappened ? prev : newCutHappened);
+      setWorstMadeCut(prev => prev === newWorstMadeCut ? prev : newWorstMadeCut);
+      setWorstMadeCutName(prev => prev === newWorstMadeCutName ? prev : newWorstMadeCutName);
+      setAllMadeCutNineScores(prev => JSON.stringify(prev) === JSON.stringify(newAllMadeCutNineScores) ? prev : newAllMadeCutNineScores);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
-    setLoading(false);
+    if (!isBackground) setLoading(false);
   }, [picks, tournamentName]);
 
   useEffect(() => {
     if (picks.length > 0) {
       fetchScores();
-      const interval = setInterval(fetchScores, 5 * 60 * 1000);
+      const interval = setInterval(() => fetchScores(true), 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
   }, [picks, fetchScores]);
@@ -944,7 +951,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
               <div style={{ color: "#5BD397" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
-                  <>Lowest made cut score: {worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut} ({worstMadeCutName})</>
+                  <>Lowest made cut score: {worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut} ({worstMadeCutName.split(" ").length > 1 ? `${worstMadeCutName[0]}. ${worstMadeCutName.split(" ").slice(1).join(" ")}` : worstMadeCutName})</>
                 )}
               </div>
               <div>
