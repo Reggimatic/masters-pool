@@ -12,8 +12,22 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata = {
-  title: "Golf Pool",
+  title: "Leader Board",
   description: "Golf pool leaderboard",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Leader Board",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/leader_board.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#143625",
 };
 
 export default function RootLayout({ children }) {
@@ -21,6 +35,11 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={`${openSans.variable} ${sourceSerif.variable} antialiased`} style={{ fontFamily: "var(--font-open-sans), sans-serif" }}>
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }`,
+          }}
+        />
       </body>
     </html>
   );
