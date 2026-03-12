@@ -173,35 +173,36 @@ function ScoreDisplay({ relative, isScoring }) {
 
 function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped }) {
   const flag = isPenalty ? "" : countryFlag(golfer.country);
+  const inactive = isCut || isWithdrawn;
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 8,
       padding: "6px 12px",
-      background: (isDropped || isCut) ? "#E8E8E8" : "transparent",
+      background: (isDropped || inactive) ? "#E8E8E8" : "transparent",
       borderBottom: "1px solid #D8D8D8"
     }}>
       <span style={{ fontSize: 13, color: "#408C64", minWidth: 34, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-        {isCut || isPenalty ? "—" : (golfer.position || "—")}
-        {!isCut && !isPenalty && golfer.positionChange === "up" && <span style={{ color: "#2E7450", fontSize: 8, lineHeight: 1 }}>▲</span>}
-        {!isCut && !isPenalty && golfer.positionChange === "down" && <span style={{ color: "#BA0C2F", fontSize: 8, lineHeight: 1 }}>▼</span>}
+        {inactive || isPenalty ? "—" : (golfer.position || "—")}
+        {!inactive && !isPenalty && golfer.positionChange === "up" && <span style={{ color: "#2E7450", fontSize: 8, lineHeight: 1 }}>▲</span>}
+        {!inactive && !isPenalty && golfer.positionChange === "down" && <span style={{ color: "#BA0C2F", fontSize: 8, lineHeight: 1 }}>▼</span>}
       </span>
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
-      <span style={{ flex: 1, fontSize: 13, color: isCut ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (isCut || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span style={{ flex: 1, fontSize: 13, color: inactive ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (inactive || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isPenalty ? "Missed cut penalty" : golfer.name}
-        {isCut && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(WD)" : "(CUT)"}</span>}
+        {inactive && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(WD)" : "(CUT)"}</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
-        {!isCut && !isPenalty && golfer.today !== null && golfer.today !== undefined
+        {!inactive && !isPenalty && golfer.today !== null && golfer.today !== undefined
           ? <span style={{ color: golfer.today < 0 ? "#BA0C2F" : "#2E7450", fontWeight: 400 }}>
               {golfer.today === 0 ? "E" : golfer.today > 0 ? `+${golfer.today}` : `${golfer.today}`}
             </span>
-          : <span style={{ color: "#ccc" }}>—</span>}
+          : <span style={{ color: "#ccc" }}>{isWithdrawn ? "—" : "—"}</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 28, textAlign: "right", fontFamily: "monospace", color: "#63605E", flexShrink: 0 }}>
-        {!isCut && !isPenalty ? (golfer.thru || "—") : ""}
+        {!inactive && !isPenalty ? (golfer.thru || "—") : ""}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
-        {!isCut && <ScoreDisplay relative={golfer.relative} isScoring={!isDropped && !isCut && !isPenalty} />}
+        {!inactive && <ScoreDisplay relative={golfer.relative} isScoring={!isDropped && !inactive && !isPenalty} />}
       </span>
     </div>
   );
@@ -226,14 +227,16 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
 
   if (!cutHappened) {
-    const sorted = [...team.golfers].sort((a, b) => {
+    const eligible = team.golfers.filter(g => !g.withdrawn);
+    const withdrawn = team.golfers.filter(g => g.withdrawn);
+    const sorted = [...eligible].sort((a, b) => {
       if (a.relative === null && b.relative === null) return 0;
       if (a.relative === null) return 1;
       if (b.relative === null) return -1;
       return a.relative - b.relative;
     });
     scoringGolfers = sorted.slice(0, 4);
-    droppedGolfers = sorted.slice(4);
+    droppedGolfers = [...sorted.slice(4), ...withdrawn];
   } else {
     const sortedMadeCut = [...madeCut].sort((a, b) => {
       if (a.relative === null && b.relative === null) return 0;
@@ -833,7 +836,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
       });
 
       const isCutCheckpoint = i >= 4 && cutHappened;
-      const eligible = isCutCheckpoint ? golferScores.filter(g => !g.missedCut) : golferScores;
+      const eligible = isCutCheckpoint ? golferScores.filter(g => !g.missedCut) : golferScores.filter(g => !liveScores[g.name]?.withdrawn);
       const withScores = eligible.filter(g => g.score !== null);
       const sorted = [...withScores].sort((a, b) => a.score - b.score);
       const scoring = sorted.slice(0, 4);
@@ -1105,7 +1108,8 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
     });
     let total = 0;
     if (!cutHappened) {
-      const sorted = [...withScores].sort((a, b) => { if (a.relative === null && b.relative === null) return 0; if (a.relative === null) return 1; if (b.relative === null) return -1; return a.relative - b.relative; });
+      const eligible = withScores.filter(g => !g.withdrawn);
+      const sorted = [...eligible].sort((a, b) => { if (a.relative === null && b.relative === null) return 0; if (a.relative === null) return 1; if (b.relative === null) return -1; return a.relative - b.relative; });
       total = sorted.slice(0, 4).reduce((sum, g) => sum + (g.relative ?? 0), 0);
     } else {
       const madeCut = withScores.filter(g => !g.missedCut);
