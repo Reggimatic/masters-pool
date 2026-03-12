@@ -301,6 +301,58 @@ export async function computeScores(golferNames, tournamentName) {
   };
 }
 
+// ESPN 3-letter flag codes → 2-letter codes used by the app
+const ESPN_TO_ISO = {
+  usa: "US", can: "CA", aus: "AU", eng: "ENG", sct: "SCO", nir: "NI", wal: "WAL",
+  irl: "IE", rsa: "ZA", kor: "KR", jpn: "JP", swe: "SE", nor: "NO", den: "DK",
+  ger: "DE", fra: "FR", esp: "ES", ita: "IT", arg: "AR", col: "CO", ven: "VE",
+  chn: "CN", tpo: "TW", phi: "PH", tha: "TH", ind: "IN", fin: "FI", aut: "AT",
+  bel: "BE", ned: "NL", chi: "CL", par: "PY", brz: "BR", mex: "MX", zim: "ZW",
+};
+
+function espnFlagToCode(flagHref) {
+  if (!flagHref) return "";
+  const match = flagHref.match(/500\/(.+)\.png/);
+  if (!match) return "";
+  const espnCode = match[1].toLowerCase();
+  return ESPN_TO_ISO[espnCode] || espnCode.toUpperCase().slice(0, 2);
+}
+
+/**
+ * Fetch all competitors from the ESPN scoreboard for a given tournament.
+ * Returns name + country code for each golfer in the field.
+ */
+export async function fetchAllCompetitors(tournamentName) {
+  const espnRes = await fetch(
+    "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
+    { next: { revalidate: 0 } }
+  );
+  if (!espnRes.ok) {
+    return { error: `ESPN API returned ${espnRes.status}`, status: 502 };
+  }
+
+  const espn = await espnRes.json();
+  const events = espn.events || [];
+  const event = tournamentName
+    ? events.find((e) => e.name?.toLowerCase().includes(tournamentName.toLowerCase())) || events[0]
+    : events[0];
+
+  if (!event) {
+    return { error: "No active tournament found on ESPN", status: 404 };
+  }
+
+  const competitors = event.competitions?.[0]?.competitors || [];
+  const golfers = competitors.map((c) => {
+    const a = c.athlete || {};
+    return {
+      name: a.displayName || a.shortName || "",
+      country: espnFlagToCode(a.flag?.href),
+    };
+  }).filter((g) => g.name);
+
+  return { golfers, tournamentName: event.name };
+}
+
 function parseRelativeHole(displayValue) {
   if (!displayValue) return 0;
   const s = String(displayValue).trim();

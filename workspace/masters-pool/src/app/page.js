@@ -295,6 +295,80 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
   );
 }
 
+// ─── Golfer Combobox ─────────────────────────────────────────────────────────
+
+function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, placeholder }) {
+  const [query, setQuery] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => { setQuery(value || ""); }, [value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const filtered = roster.length > 0 && query.length > 0
+    ? roster.filter(g =>
+        !selectedGolfers.has(g.name) &&
+        g.name.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 12)
+    : [];
+
+  const handleSelect = (golfer) => {
+    setQuery(golfer.name);
+    setOpen(false);
+    onChange(golfer.name, golfer.country);
+  };
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    setOpen(val.length > 0 && roster.length > 0);
+    // If cleared, also clear the country
+    if (!val) onChange("", "");
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative", width: "100%" }}>
+      <input
+        style={{ ...inputStyle, width: "100%" }}
+        placeholder={placeholder}
+        value={query}
+        onChange={handleInputChange}
+        onFocus={() => { if (query.length > 0 && roster.length > 0) setOpen(true); }}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 60,
+          background: "#0d1f14", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 6,
+          maxHeight: 200, overflowY: "auto", marginTop: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
+        }}>
+          {filtered.map(g => (
+            <div
+              key={g.name}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(g); }}
+              style={{
+                padding: "8px 12px", cursor: "pointer", fontSize: 13, color: "#e8dfc4",
+                display: "flex", alignItems: "center", gap: 8,
+                borderBottom: "1px solid rgba(201,168,76,0.08)"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(201,168,76,0.1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <span style={{ fontSize: 16, minWidth: 22, textAlign: "center" }}>{countryFlag(g.country)}</span>
+              <span>{g.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Admin Panel ─────────────────────────────────────────────────────────────
 
 const COUNTRY_HINT = "2-letter code: US, GB, AU, IE, ZA, ES, JP, SE, NO, DE, CA, AR, KR...";
@@ -353,6 +427,18 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
   // Archive
   const [archiving, setArchiving] = useState(false);
   const [isAlreadyArchived, setIsAlreadyArchived] = useState(false);
+
+  // Golfer roster
+  const [roster, setRoster] = useState([]);
+  const [refreshingRoster, setRefreshingRoster] = useState(false);
+
+  useEffect(() => {
+    if (tab === "picks" && roster.length === 0) {
+      supabase.from("golfers").select("name, country").order("name").then(({ data }) => {
+        setRoster(data || []);
+      });
+    }
+  }, [tab, roster.length]);
 
   useEffect(() => {
     if (tab === "withdrawals") {
@@ -442,6 +528,30 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
     }
   };
 
+  const handleRefreshRoster = async () => {
+    setRefreshingRoster(true);
+    try {
+      const res = await fetch("/api/seed-golfers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.error) { alert("Refresh failed: " + data.error); return; }
+      // Reload roster
+      const { data: updated } = await supabase.from("golfers").select("name, country").order("name");
+      setRoster(updated || []);
+      alert(`Roster updated! ${data.count} golfers loaded from ${data.tournament}.`);
+    } catch (e) {
+      alert("Refresh failed: " + e.message);
+    } finally {
+      setRefreshingRoster(false);
+    }
+  };
+
+  // Derive set of all currently-selected golfer names (for filtering combobox)
+  const selectedGolfers = new Set(teams.flatMap(t => t.golfers.map(g => g.name).filter(Boolean)));
+
   // Picks tab
   const addTeam = () => setTeams(t => [...t, { name: "", golfers: Array(6).fill(null).map(() => ({ ...emptyGolfer })) }]);
   const removeTeam = (i) => setTeams(t => t.filter((_, idx) => idx !== i));
@@ -512,18 +622,21 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
                     <button onClick={() => removeAvatar(team.name)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>Remove</button>
                   )}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 52px", gap: 6, marginBottom: 4, padding: "0 2px" }}>
-                  <span style={{ fontSize: 10, color: "#444" }}>GOLFER NAME</span>
-                  <span style={{ fontSize: 10, color: "#444", textAlign: "center" }}>FLAG</span>
-                </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {team.golfers.map((g, gi) => (
-                    <div key={gi} style={{ display: "grid", gridTemplateColumns: "1fr 52px", gap: 6, alignItems: "center" }}>
-                      <input style={{ ...inputStyle, width: "100%" }} placeholder={`Golfer ${gi + 1}${gi >= 4 ? " (reserve)" : ""}`} value={g.name} onChange={e => updateGolferField(ti, gi, "name", e.target.value)} />
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input style={{ ...inputStyle, width: "100%", textAlign: "center", textTransform: "uppercase", letterSpacing: 2, padding: "6px 4px" }} placeholder="US" maxLength={2} value={g.country} onChange={e => updateGolferField(ti, gi, "country", e.target.value)} />
-                        <span style={{ fontSize: 18, minWidth: 24, textAlign: "center" }}>{countryFlag(g.country)}</span>
-                      </div>
+                    <div key={gi} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 18, minWidth: 24, textAlign: "center", flexShrink: 0 }}>{countryFlag(g.country) || <span style={{ color: "#333" }}>🏳</span>}</span>
+                      <GolferCombobox
+                        value={g.name}
+                        onChange={(name, country) => {
+                          updateGolferField(ti, gi, "name", name);
+                          if (country !== undefined) updateGolferField(ti, gi, "country", country);
+                        }}
+                        roster={roster}
+                        selectedGolfers={selectedGolfers}
+                        inputStyle={inputStyle}
+                        placeholder={`Golfer ${gi + 1}${gi >= 4 ? " (reserve)" : ""}`}
+                      />
                     </div>
                   ))}
                 </div>
@@ -615,6 +728,27 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
                 {archiving ? "Archiving..." : isAlreadyArchived ? "Re-Archive Tournament" : "Archive Tournament"}
               </button>
             </div>
+
+            {/* Golfer Roster */}
+            <div>
+              <h3 style={{ color: GOLD, fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>Golfer Roster</h3>
+              <p style={{ color: "#888", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+                Pull the latest field from ESPN to update the golfer search list used when entering picks.
+                {roster.length > 0 && <span style={{ color: "#5BD397" }}> Currently {roster.length} golfers in roster.</span>}
+              </p>
+              <button
+                onClick={handleRefreshRoster}
+                disabled={refreshingRoster}
+                style={{
+                  width: "100%", background: "none",
+                  border: `1px solid ${GOLD}`, color: GOLD,
+                  borderRadius: 8, padding: "10px", cursor: refreshingRoster ? "default" : "pointer",
+                  fontSize: 13, fontWeight: 700, opacity: refreshingRoster ? 0.5 : 1,
+                }}
+              >
+                {refreshingRoster ? "Refreshing..." : "Refresh Roster from ESPN"}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -659,8 +793,8 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
 
   if (maxCheckpoints < 1) return null;
 
-  // Only plot a checkpoint if ALL relevant golfers across all teams have completed it
-  // For R3+ checkpoints (index >= 4), only golfers who made the cut are relevant
+  // A checkpoint is "locked in" only when ALL golfers have completed it.
+  // The LIVE point always reflects the current team card totals.
   const allGolferNames = [...new Set(teams.flatMap(t => t.golfers.map(g => g.name || g)))];
   let plottableCheckpoints = 0;
   for (let i = 0; i < maxCheckpoints; i++) {
@@ -677,12 +811,10 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     else break;
   }
 
-  if (plottableCheckpoints < 1) return null;
-
   // Numeric x positions: Start=0, R1-Out=1, R1-Tot=2, R2-Out=3, R2-Tot=4, R3-Out=5, R3-Tot=6, R4-Out=7, R4-Tot=8
   const CHECKPOINT_X = [1, 2, 3, 4, 5, 6, 7, 8];
   const ROUND_TICKS = [0, 2, 4, 6, 8]; // Start, R1, R2, R3, R4
-  const ROUND_LABELS = { 0: "Start", 2: "R1", 4: "R2", 6: "R3", 8: "R4" };
+  const ROUND_LABELS = { 0: "Start", 2: "R1", 4: "R2", 6: "R3", 8: "Final" };
 
   // Start with everyone at E
   const chartData = [{ x: 0 }];
@@ -723,10 +855,12 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     chartData.push(point);
   }
 
-  // Add "LIVE" point halfway between last completed checkpoint and next
+  // Add "LIVE" point — always shown unless tournament is complete (all 8 checkpoints locked).
+  // Positioned halfway between the last locked checkpoint and the next one.
+  // Uses team.total which matches exactly what the team cards display.
   const isComplete = plottableCheckpoints >= 8;
   let liveX = null;
-  if (!isComplete) {
+  if (!isComplete && maxCheckpoints >= 1) {
     const lastX = plottableCheckpoints > 0 ? CHECKPOINT_X[plottableCheckpoints - 1] : 0;
     const nextX = CHECKPOINT_X[plottableCheckpoints] ?? lastX + 1;
     liveX = (lastX + nextX) / 2;
@@ -782,10 +916,27 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
             labelStyle={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}
             formatter={(value, name) => [formatScore(value), name]}
             labelFormatter={(val) => {
-              const ALL_TOOLTIP_LABELS = { 0: "Start", 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "R4" };
-              return ALL_TOOLTIP_LABELS[val] || (val === liveX ? "LIVE" : "");
+              const ALL_TOOLTIP_LABELS = { 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "Final" };
+              return ALL_TOOLTIP_LABELS[val] || "";
             }}
             itemSorter={(item) => item.value}
+            content={({ active, payload, label }) => {
+              // Only show tooltip on locked checkpoint x-values (integers 1-8)
+              const lockedXValues = CHECKPOINT_X.slice(0, plottableCheckpoints);
+              if (!active || !payload || !lockedXValues.includes(label)) return null;
+              const ALL_TOOLTIP_LABELS = { 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "Final" };
+              const sorted = [...payload].filter(p => p.value != null).sort((a, b) => a.value - b.value);
+              return (
+                <div style={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12, padding: "8px 12px" }}>
+                  <div style={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}>{ALL_TOOLTIP_LABELS[label] || ""}</div>
+                  {sorted.map((entry, i) => (
+                    <div key={i} style={{ color: entry.color, padding: "1px 0" }}>
+                      {formatScore(entry.value)} — {entry.name}
+                    </div>
+                  ))}
+                </div>
+              );
+            }}
           />
           {liveX !== null && <ReferenceLine xAxisId="bottom" x={liveX} stroke="rgb(252, 227, 0)" strokeDasharray="4 4" strokeOpacity={0.4} />}
           {teamNames.map((name, i) => (
