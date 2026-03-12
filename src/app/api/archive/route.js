@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { computeScores } from "@/lib/fetchScores";
+import { computeScores, fetchAllCompetitors } from "@/lib/fetchScores";
 
 export async function POST(request) {
   const { tournamentId, tournamentName } = await request.json();
@@ -48,6 +48,17 @@ export async function POST(request) {
 
   if (upsertError) {
     return Response.json({ error: "Failed to save archive: " + upsertError.message }, { status: 500 });
+  }
+
+  // Also upsert all competitors into the golfers roster
+  const fieldResult = await fetchAllCompetitors(tournamentName);
+  if (fieldResult.golfers) {
+    const golferRows = fieldResult.golfers.map((g) => ({
+      name: g.name,
+      country: g.country,
+      updated_at: new Date().toISOString(),
+    }));
+    await supabase.from("golfers").upsert(golferRows, { onConflict: "name" });
   }
 
   return Response.json({ success: true, round: result.round });
