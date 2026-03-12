@@ -374,9 +374,8 @@ function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, 
 
 // ─── Admin Panel ─────────────────────────────────────────────────────────────
 
-const COUNTRY_HINT = "2-letter code: US, GB, AU, IE, ZA, ES, JP, SE, NO, DE, CA, AR, KR...";
 
-function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose, avatars, onAvatarsChange, onWithdrawalsChange }) {
+function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSave, onClose, avatars, onAvatarsChange, onWithdrawalsChange }) {
   const emptyGolfer = { name: "", country: "" };
   const [tab, setTab] = useState("picks");
   const [teams, setTeams] = useState(
@@ -574,25 +573,27 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
     onClose();
   };
 
-  const inputStyle = { background: "#0d1f14", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 6, color: "#e8dfc4", padding: "6px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" };
+  const inputStyle = { background: "rgb(14, 39, 26)", border: "none", borderRadius: 6, color: "#fff", padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" };
+  const nameInputStyle = { ...inputStyle, background: "#fff", border: "1px solid rgb(91, 211, 151)", color: "rgb(34, 86, 60)" };
+  const removeBtnStyle = { background: "rgb(163, 3, 3)", border: "1px solid rgb(217, 128, 128)", color: "#fff", borderRadius: 6, cursor: "pointer" };
 
   const tabStyle = (active) => ({
     flex: 1, background: "none", border: "none",
     borderBottom: `2px solid ${active ? GOLD : "transparent"}`,
-    color: active ? GOLD : "#555", padding: "10px", cursor: "pointer",
+    color: active ? "rgb(252, 227, 0)" : "#e9ffc2", padding: "10px", cursor: "pointer",
     fontSize: 13, letterSpacing: 1, textTransform: "uppercase"
   });
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: "#12261a", border: `1px solid ${GOLD}`, borderRadius: 16, padding: 28, maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ background: "rgb(34, 86, 60)", border: "1px solid rgb(91, 211, 151)", borderRadius: 16, padding: 28, maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <h2 style={{ color: GOLD, fontSize: 22, margin: 0, fontWeight: 700 }}>Admin</h2>
+          <h2 style={{ color: "#fff", fontSize: 22, margin: 0, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Admin</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#888", fontSize: 22, cursor: "pointer" }}>✕</button>
         </div>
 
-        <div style={{ fontSize: 12, color: "#555", marginBottom: 16 }}>
-          {tournaments.find ? "" : ""}{group} · {tournament}
+        <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 16 }}>
+          {groupName || group} · {tournamentName || tournament}
         </div>
 
         {/* Tabs */}
@@ -604,12 +605,11 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
 
         {tab === "picks" && (
           <>
-            <p style={{ color: "#555", fontSize: 11, marginBottom: 16 }}>{COUNTRY_HINT}</p>
             {teams.map((team, ti) => (
-              <div key={ti} style={{ background: "#0d1f14", borderRadius: 10, padding: 16, marginBottom: 16, border: "1px solid rgba(201,168,76,0.15)" }}>
+              <div key={ti} style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <input style={{ ...inputStyle, fontSize: 15, fontWeight: 600, flex: 1 }} placeholder="Participant name" value={team.name} onChange={e => updateTeamName(ti, e.target.value)} />
-                  <button onClick={() => removeTeam(ti)} style={{ marginLeft: 10, background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>Remove</button>
+                  <input style={{ ...nameInputStyle, fontSize: 15, fontWeight: 600, flex: 1 }} placeholder="Participant name" value={team.name} onChange={e => updateTeamName(ti, e.target.value)} />
+                  <button onClick={() => removeTeam(ti)} style={{ ...removeBtnStyle, marginLeft: 10, padding: "4px 10px", fontSize: 12 }}>Remove</button>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.1)" }}>
                   {avatars[team.name] ? (
@@ -617,12 +617,12 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
                   ) : (
                     <div style={{ width: 36, height: 36, borderRadius: 6, background: "#1a472a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⛳</div>
                   )}
-                  <label style={{ background: "none", border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>
+                  <label style={{ background: "#337b57", border: "1px solid rgb(91, 211, 151)", color: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>
                     {uploading === team.name ? "Uploading..." : avatars[team.name] ? "Replace" : "Upload Image"}
                     <input type="file" accept="image/*" hidden onChange={e => { if (e.target.files[0] && team.name.trim()) uploadAvatar(team.name, e.target.files[0]); }} />
                   </label>
                   {avatars[team.name] && (
-                    <button onClick={() => removeAvatar(team.name)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>Remove</button>
+                    <button onClick={() => removeAvatar(team.name)} style={{ ...removeBtnStyle, padding: "4px 10px", fontSize: 11 }}>Remove</button>
                   )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -658,7 +658,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
             {withdrawals.map(w => (
               <div key={w.golfer_name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.08)" }}>
                 <span style={{ color: "#e8dfc4", fontSize: 14 }}>{w.golfer_name}</span>
-                <button onClick={() => removeWithdrawal(w.golfer_name)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Remove</button>
+                <button onClick={() => removeWithdrawal(w.golfer_name)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Remove</button>
               </div>
             ))}
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -679,7 +679,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
                     <div style={{ color: "#e8dfc4", fontSize: 14 }}>{t.display_name}</div>
                     <div style={{ color: "#555", fontSize: 11, fontFamily: "monospace" }}>{t.id}</div>
                   </div>
-                  <button onClick={() => deleteTournament(t.id)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Delete</button>
+                  <button onClick={() => deleteTournament(t.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
                 </div>
               ))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
@@ -698,7 +698,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
                     <div style={{ color: "#e8dfc4", fontSize: 14 }}>{g.display_name}</div>
                     <div style={{ color: "#555", fontSize: 11, fontFamily: "monospace" }}>{g.id}</div>
                   </div>
-                  <button onClick={() => deleteGroup(g.id)} style={{ background: "none", border: "1px solid #e05252", color: "#e05252", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Delete</button>
+                  <button onClick={() => deleteGroup(g.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
                 </div>
               ))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
@@ -765,7 +765,7 @@ function PasswordModal({ onSuccess, onClose }) {
   const attempt = () => { if (val === ADMIN_PASSWORD) { onSuccess(); } else { setErr(true); setVal(""); } };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "rgb(20, 54, 37)", border: "1px solid rgb(51, 124, 87)", borderRadius: 16, padding: 36, maxWidth: 340, width: "100%", textAlign: "center" }}>
+      <div style={{ background: "rgb(34, 86, 60)", border: "1px solid rgb(91, 211, 151)", borderRadius: 16, padding: 36, maxWidth: 340, width: "100%", textAlign: "center" }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>⛳</div>
         <h2 style={{ color: "rgb(252, 227, 0)", marginBottom: 20, fontWeight: 700 }}>Admin Access</h2>
         <input type="password" value={val} onChange={e => { setVal(e.target.value); setErr(false); }} onKeyDown={e => e.key === "Enter" && attempt()} placeholder="Password"
@@ -1194,12 +1194,12 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
         <div style={{ marginTop: 14, fontSize: 12, color: "#5BD397", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
-          <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "rgb(51, 124, 87)", cursor: "pointer", display: "flex", alignItems: "center" }}><IoSettingsOutline size={18} /></a>
+          <a onClick={() => (authed || typeof window !== "undefined" && window.location.hostname === "localhost") ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "rgb(51, 124, 87)", cursor: "pointer", display: "flex", alignItems: "center" }}><IoSettingsOutline size={18} /></a>
         </div>
       </div>
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
-      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} onSave={savePicks} onClose={() => setShowAdmin(false)} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
+      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} onSave={savePicks} onClose={() => setShowAdmin(false)} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
     </div>
   );
 }
