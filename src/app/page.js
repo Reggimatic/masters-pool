@@ -279,7 +279,8 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
           <span style={{ color: "#807D7B", fontSize: 12, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s", display: "inline-block", lineHeight: 1 }}>▼</span>
         </div>
       </div>
-      <div style={{ maxHeight: expanded ? "600px" : "0px", overflow: "hidden", transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)" }}>
+      <div style={{ display: "grid", gridTemplateRows: expanded ? "1fr" : "0fr", transition: "grid-template-rows 0.25s ease" }}>
+        <div style={{ overflow: "hidden" }}>
         <div style={{ padding: 10 }}>
           <div>
             <GolferRowHeader />
@@ -287,6 +288,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
             {Array.from({ length: penaltySlots }).map((_, i) => <GolferRow key={`penalty-${i}`} golfer={{ relative: worstMadeCut }} isCut={false} isPenalty={true} isDropped={false} />)}
             {droppedGolfers.map(g => <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} />)}
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -348,6 +350,10 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
   const [withdrawals, setWithdrawals] = useState([]);
   const [newWithdrawal, setNewWithdrawal] = useState("");
 
+  // Archive
+  const [archiving, setArchiving] = useState(false);
+  const [isAlreadyArchived, setIsAlreadyArchived] = useState(false);
+
   useEffect(() => {
     if (tab === "withdrawals") {
       (async () => {
@@ -375,15 +381,17 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
   useEffect(() => {
     if (tab === "manage") {
       (async () => {
-        const [{ data: t }, { data: g }] = await Promise.all([
+        const [{ data: t }, { data: g }, { data: ar }] = await Promise.all([
           supabase.from("tournaments").select("*").order("created_at", { ascending: false }),
-          supabase.from("groups").select("*").order("created_at")
+          supabase.from("groups").select("*").order("created_at"),
+          supabase.from("tournament_results").select("tournament").eq("tournament", tournament).single()
         ]);
         setTournaments(t || []);
         setGroups(g || []);
+        setIsAlreadyArchived(!!ar);
       })();
     }
-  }, [tab]);
+  }, [tab, tournament]);
 
   const addTournament = async () => {
     if (!newTournamentId.trim() || !newTournamentName.trim()) return;
@@ -409,6 +417,29 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
   const deleteGroup = async (id) => {
     await supabase.from("groups").delete().eq("id", id);
     setGroups(g => g.filter(x => x.id !== id));
+  };
+
+  const handleArchive = async () => {
+    const msg = isAlreadyArchived
+      ? `Re-archive "${tournamentName}"? This will overwrite the previously saved results with a fresh snapshot from ESPN.`
+      : `Archive "${tournamentName}"?\n\nMake sure the tournament is fully complete before archiving. This will snapshot the current ESPN scores as the final results.\n\nOnce archived, this tournament will show stored results instead of fetching live data.`;
+    if (!confirm(msg)) return;
+    setArchiving(true);
+    try {
+      const res = await fetch("/api/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tournamentId: tournament, tournamentName })
+      });
+      const data = await res.json();
+      if (data.error) { alert("Archive failed: " + data.error); return; }
+      setIsAlreadyArchived(true);
+      alert("Tournament archived successfully! Final scores have been saved.");
+    } catch (e) {
+      alert("Archive failed: " + e.message);
+    } finally {
+      setArchiving(false);
+    }
   };
 
   // Picks tab
@@ -559,6 +590,30 @@ function AdminPanel({ picks, tournament, group, tournamentName, onSave, onClose,
                 <input style={{ ...inputStyle, width: "100%" }} placeholder='Name e.g. "College Friends"' value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
               </div>
               <button onClick={addGroup} style={{ marginTop: 8, width: "100%", background: "none", border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: "8px", cursor: "pointer", fontSize: 13 }}>+ Add Group</button>
+            </div>
+
+            {/* Archive */}
+            <div>
+              <h3 style={{ color: GOLD, fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>Archive Tournament</h3>
+              <p style={{ color: "#888", fontSize: 12, marginBottom: 6, lineHeight: 1.5 }}>
+                Snapshot final scores for <strong style={{ color: "#e8dfc4" }}>{tournamentName}</strong> so they can be viewed after the tournament leaves ESPN.
+              </p>
+              <p style={{ color: "#e05252", fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
+                Only archive after the tournament is fully complete. ESPN data is only available for a limited time after the event ends.
+              </p>
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                style={{
+                  width: "100%", background: archiving ? "#555" : isAlreadyArchived ? "none" : GOLD,
+                  border: isAlreadyArchived ? `1px solid ${GOLD}` : "none",
+                  color: archiving ? "#888" : isAlreadyArchived ? GOLD : "#0d1f14",
+                  borderRadius: 8, padding: "10px", cursor: archiving ? "default" : "pointer",
+                  fontSize: 13, fontWeight: 700,
+                }}
+              >
+                {archiving ? "Archiving..." : isAlreadyArchived ? "Re-Archive Tournament" : "Archive Tournament"}
+              </button>
             </div>
           </div>
         )}
@@ -743,6 +798,9 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
               strokeWidth={2.5}
               dot={{ r: 4, fill: TEAM_COLORS[i % TEAM_COLORS.length] }}
               activeDot={{ r: 6 }}
+              isAnimationActive={true}
+              animationDuration={1200}
+              animationEasing="ease-in-out"
             />
           ))}
         </LineChart>
@@ -802,10 +860,13 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
+  const [isArchived, setIsArchived] = useState(false);
 
   const expandedTeams = useRef(new Set());
+  const skipReorderAnim = useRef(false);
   const [, forceUpdate] = useState(0);
   const toggleTeam = (name) => {
+    skipReorderAnim.current = true;
     if (expandedTeams.current.has(name)) expandedTeams.current.delete(name);
     else expandedTeams.current.add(name);
     forceUpdate(n => n + 1);
@@ -854,7 +915,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       const response = await fetch("/api/scores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ golferNames: allGolfers, tournamentName })
+        body: JSON.stringify({ golferNames: allGolfers, tournamentName, tournamentId: tournament })
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);
@@ -870,6 +931,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       setWorstMadeCut(prev => prev === newWorstMadeCut ? prev : newWorstMadeCut);
       setWorstMadeCutName(prev => prev === newWorstMadeCutName ? prev : newWorstMadeCutName);
       setAllMadeCutNineScores(prev => JSON.stringify(prev) === JSON.stringify(newAllMadeCutNineScores) ? prev : newAllMadeCutNineScores);
+      setIsArchived(data.archived || false);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     if (!isBackground) setLoading(false);
@@ -878,10 +940,12 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   useEffect(() => {
     if (picks.length > 0) {
       fetchScores();
-      const interval = setInterval(() => fetchScores(true), 5 * 60 * 1000);
-      return () => clearInterval(interval);
+      if (!isArchived) {
+        const interval = setInterval(() => fetchScores(true), 5 * 60 * 1000);
+        return () => clearInterval(interval);
+      }
     }
-  }, [picks, fetchScores]);
+  }, [picks, fetchScores, isArchived]);
 
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
@@ -906,14 +970,17 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   useEffect(() => {
     const newPositions = {};
     rankedTeams.forEach(team => { const el = cardRefs.current[team.name]; if (el) newPositions[team.name] = el.getBoundingClientRect().top; });
-    rankedTeams.forEach(team => {
-      const el = cardRefs.current[team.name]; const prev = prevPositions.current[team.name]; const next = newPositions[team.name];
-      if (el && prev !== undefined && Math.abs(prev - next) > 2) {
-        const delta = prev - next;
-        el.style.transition = "none"; el.style.transform = `translateY(${delta}px)`;
-        requestAnimationFrame(() => { el.style.transition = "transform 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94)"; el.style.transform = "translateY(0)"; });
-      }
-    });
+    if (!skipReorderAnim.current) {
+      rankedTeams.forEach(team => {
+        const el = cardRefs.current[team.name]; const prev = prevPositions.current[team.name]; const next = newPositions[team.name];
+        if (el && prev !== undefined && Math.abs(prev - next) > 2) {
+          const delta = prev - next;
+          el.style.transition = "none"; el.style.transform = `translateY(${delta}px)`;
+          requestAnimationFrame(() => { el.style.transition = "transform 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94)"; el.style.transform = "translateY(0)"; });
+        }
+      });
+    }
+    skipReorderAnim.current = false;
     prevPositions.current = newPositions;
   });
 
@@ -955,7 +1022,9 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
                 )}
               </div>
               <div>
-                {loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
+                {isArchived ? (
+                  <span style={{ background: "rgba(201,168,76,0.15)", border: "1px solid rgba(201,168,76,0.4)", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: GOLD, letterSpacing: 1, textTransform: "uppercase" }}>Final</span>
+                ) : loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
                   : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
                   : <span style={{ color: "#555" }}>—</span>}
               </div>
