@@ -872,12 +872,6 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     chartData.push(nowPoint);
   }
 
-  // Ensure all round-end positions exist as data points so ticks always render
-  const existingXs = new Set(chartData.map(d => d.x));
-  for (const rx of ROUND_TICKS) {
-    if (!existingXs.has(rx)) chartData.push({ x: rx });
-  }
-
   // Sort by x so recharts plots in order
   chartData.sort((a, b) => a.x - b.x);
 
@@ -889,14 +883,12 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     return `${val}`;
   };
 
-  // Build tick values: round markers + LIVE
-  const tickValues = [...ROUND_TICKS, ...(liveX !== null ? [liveX] : [])];
 
   return (
     <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "16px 8px 8px", marginBottom: 12 }}>
       <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
-          <XAxis xAxisId="bottom" dataKey="x" type="number" domain={[0, 8]} ticks={ROUND_TICKS} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
+        <LineChart data={chartData} margin={{ top: 18, right: 20, left: 5, bottom: 5 }}>
+          <XAxis dataKey="x" type="number" domain={[0, 8]} ticks={ROUND_TICKS} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
             const label = ROUND_LABELS[payload.value];
             if (!label) return null;
             return (
@@ -905,14 +897,6 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
               </text>
             );
           }} axisLine={{ stroke: "#337B57" }} tickLine={false} />
-          <XAxis xAxisId="top" dataKey="x" type="number" domain={[0, 8]} orientation="top" ticks={liveX !== null ? [liveX] : []} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
-            if (payload.value !== liveX) return null;
-            return (
-              <text x={x} y={y - 4} textAnchor="middle" fontSize={11} fill="rgb(252, 227, 0)" fontWeight={700}>
-                LIVE
-              </text>
-            );
-          }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatScore} width={35} reversed />
           <Tooltip
             contentStyle={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12 }}
@@ -924,14 +908,15 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
             }}
             itemSorter={(item) => item.value}
             content={({ active, payload, label }) => {
-              // Only show tooltip on locked checkpoint x-values (integers 1-8)
+              // Show tooltip on locked checkpoints and LIVE point
               const lockedXValues = CHECKPOINT_X.slice(0, plottableCheckpoints);
-              if (!active || !payload || !lockedXValues.includes(label)) return null;
+              const validXValues = [...lockedXValues, ...(liveX !== null ? [liveX] : [])];
+              if (!active || !payload || !validXValues.includes(label)) return null;
               const ALL_TOOLTIP_LABELS = { 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "Final" };
               const sorted = [...payload].filter(p => p.value != null).sort((a, b) => a.value - b.value);
               return (
                 <div style={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12, padding: "8px 12px" }}>
-                  <div style={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}>{ALL_TOOLTIP_LABELS[label] || ""}</div>
+                  <div style={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}>{label === liveX ? "LIVE" : ALL_TOOLTIP_LABELS[label] || ""}</div>
                   {sorted.map((entry, i) => (
                     <div key={i} style={{ color: entry.color, padding: "1px 0" }}>
                       {formatScore(entry.value)} — {entry.name}
@@ -941,11 +926,11 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
               );
             }}
           />
-          {liveX !== null && <ReferenceLine xAxisId="bottom" x={liveX} stroke="rgb(252, 227, 0)" strokeDasharray="4 4" strokeOpacity={0.4} />}
+          {liveX !== null && <ReferenceLine x={liveX} stroke="rgb(252, 227, 0)" strokeDasharray="4 4" strokeOpacity={0.4} label={{ value: "LIVE", position: "top", fill: "rgb(252, 227, 0)", fontSize: 11, fontWeight: 700 }} />}
           {teamNames.map((name, i) => (
             <Line
               key={name}
-              xAxisId="bottom"
+
               type="monotone"
               dataKey={name}
               stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
