@@ -178,7 +178,7 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped }) {
     <div style={{
       display: "flex", alignItems: "center", gap: 8,
       padding: "6px 12px",
-      background: (isDropped || inactive) ? "#E8E8E8" : "transparent",
+      background: (isDropped || inactive) ? "rgb(243, 240, 236)" : "transparent",
       borderBottom: "1px solid #D8D8D8"
     }}>
       <span style={{ fontSize: 13, color: "#408C64", minWidth: 34, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
@@ -259,8 +259,8 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
   });
 
   return (
-    <div style={{ background: expanded ? "#fff" : "#E8E8E8", borderRadius: 7, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
-      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "#E8E8E8", borderRadius: expanded ? "7px 7px 0 0" : 7 }}>
+    <div style={{ background: expanded ? "#fff" : "rgb(243, 240, 236)", borderRadius: 7, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", overflow: "hidden" }}>
+      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", cursor: "pointer", userSelect: "none", background: "rgb(243, 240, 236)", borderRadius: expanded ? "7px 7px 0 0" : 7 }}>
         <div style={{ width: 7, height: 44, borderRadius: 2, background: chartColor, flexShrink: 0, marginLeft: -5, marginRight: -2 }} />
         {avatarUrl ? (
           <img src={avatarUrl} alt={team.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
