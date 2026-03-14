@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { GrRefresh } from "react-icons/gr";
-import { IoSettingsOutline } from "react-icons/io5";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const ADMIN_PASSWORD = "augusta2025";
@@ -1000,6 +999,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
   const [isArchived, setIsArchived] = useState(false);
+  const [roundStatus, setRoundStatus] = useState(null);
 
   const expandedTeams = useRef(new Set());
   const skipReorderAnim = useRef(false);
@@ -1071,6 +1071,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       setWorstMadeCutName(prev => prev === newWorstMadeCutName ? prev : newWorstMadeCutName);
       setAllMadeCutNineScores(prev => JSON.stringify(prev) === JSON.stringify(newAllMadeCutNineScores) ? prev : newAllMadeCutNineScores);
       setIsArchived(data.archived || false);
+      setRoundStatus(data.statusDetail || null);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     if (!isBackground) setLoading(false);
@@ -1158,15 +1159,13 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
               <div style={{ color: "#5BD397" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
-                  <>Lowest made cut score: {worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut} ({worstMadeCutName.split(" ").length > 1 ? `${worstMadeCutName[0]}. ${worstMadeCutName.split(" ").slice(1).join(" ")}` : worstMadeCutName})</>
+                  <>Lowest made cut: {worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut} ({worstMadeCutName.split(" ").length > 1 ? `${worstMadeCutName[0]}. ${worstMadeCutName.split(" ").slice(1).join(" ")}` : worstMadeCutName})</>
                 )}
               </div>
-              <div>
+              <div style={{ color: "#5BD397" }}>
                 {isArchived ? (
                   <span style={{ background: "rgba(201,168,76,0.15)", border: "1px solid rgba(201,168,76,0.4)", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: GOLD, letterSpacing: 1, textTransform: "uppercase" }}>Final</span>
-                ) : loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
-                  : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
-                  : <span style={{ color: "#555" }}>—</span>}
+                ) : roundStatus || null}
               </div>
             </div>
             {rankedTeams.map((team, i) => (
@@ -1177,9 +1176,18 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           </div>
         )}
 
-        <div style={{ marginTop: 14, fontSize: 12, color: "#5BD397", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
-          <a onClick={() => (authed || typeof window !== "undefined" && window.location.hostname === "localhost") ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "rgb(51, 124, 87)", cursor: "pointer", display: "flex", alignItems: "center" }}><IoSettingsOutline size={18} /></a>
+        <div style={{ marginTop: 14, fontSize: 11, color: "#5BD397", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            {isArchived ? null
+              : loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
+              : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
+              : <span style={{ color: "#555" }}>—</span>}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
+            <span style={{ color: "#5BD397" }}>|</span>
+            <a onClick={() => (authed || typeof window !== "undefined" && window.location.hostname === "localhost") ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#5BD397", cursor: "pointer", textDecoration: "underline" }}>Admin</a>
+          </div>
         </div>
       </div>
 

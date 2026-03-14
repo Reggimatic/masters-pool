@@ -292,6 +292,7 @@ export async function computeScores(golferNames, tournamentName) {
 
   return {
     round,
+    statusDetail,
     cutHappened,
     worstMadeCutScore,
     worstMadeCutName,
