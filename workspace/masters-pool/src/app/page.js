@@ -578,7 +578,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
 
   const tabStyle = (active) => ({
     flex: 1, background: "none", border: "none",
-    borderBottom: `2px solid ${active ? GOLD : "transparent"}`,
+    borderBottom: `2px solid ${active ? "rgb(252, 227, 0)" : "transparent"}`,
     color: active ? "rgb(252, 227, 0)" : "#e9ffc2", padding: "10px", cursor: "pointer",
     fontSize: 13, letterSpacing: 1, textTransform: "uppercase"
   });
@@ -592,7 +592,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
         </div>
 
         <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 16 }}>
-          {groupName || group} · {tournamentName || tournament}
+          <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Tournament:</strong> {tournamentName || tournament} &nbsp;&nbsp; <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Group:</strong> {groupName || group}
         </div>
 
         {/* Tabs */}
@@ -645,38 +645,38 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
               </div>
             ))}
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-              <button onClick={addTeam} style={{ flex: 1, background: "none", border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 14 }}>+ Add Participant</button>
-              <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: GOLD, border: "none", color: "#0d1f14", borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>{saving ? "Saving..." : "Save Picks"}</button>
+              <button onClick={addTeam} style={{ flex: 1, background: "none", border: "1px solid rgb(252, 227, 0)", color: "rgb(252, 227, 0)", borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 14 }}>+ Add Participant</button>
+              <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: "rgb(252, 227, 0)", border: "none", color: "#0d1f14", borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>{saving ? "Saving..." : "Save Picks"}</button>
             </div>
           </>
         )}
 
         {tab === "withdrawals" && (
           <div>
-            <p style={{ color: "#555", fontSize: 11, marginBottom: 16 }}>Mark golfers as withdrawn for {tournamentName}. Withdrawn golfers are treated like missed-cut players for scoring.</p>
+            <p style={{ color: "#fff", fontSize: 11, marginBottom: 16 }}>Mark golfers as withdrawn for {tournamentName}. Withdrawn golfers are treated like missed-cut players for scoring.</p>
             {withdrawals.map(w => (
-              <div key={w.golfer_name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.08)" }}>
-                <span style={{ color: "#e8dfc4", fontSize: 14 }}>{w.golfer_name}</span>
+              <div key={w.golfer_name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
+                <span style={{ color: "rgb(233, 255, 194)", fontSize: 14 }}>{w.golfer_name}</span>
                 <button onClick={() => removeWithdrawal(w.golfer_name)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Remove</button>
               </div>
             ))}
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <input style={{ ...inputStyle, flex: 1 }} placeholder="Golfer name (e.g. Rory McIlroy)" value={newWithdrawal} onChange={e => setNewWithdrawal(e.target.value)} onKeyDown={e => e.key === "Enter" && addWithdrawal()} />
-              <button onClick={addWithdrawal} style={{ background: GOLD, border: "none", color: "#0d1f14", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Add</button>
+              <button onClick={addWithdrawal} style={{ background: "rgb(252, 227, 0)", border: "none", color: "#0d1f14", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Add</button>
             </div>
           </div>
         )}
 
         {tab === "manage" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {/* Tournaments */}
-            <div>
-              <h3 style={{ color: GOLD, fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>Tournaments</h3>
+            <div style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Tournaments</h3>
               {tournaments.map(t => (
-                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.08)" }}>
+                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
                   <div>
-                    <div style={{ color: "#e8dfc4", fontSize: 14 }}>{t.display_name}</div>
-                    <div style={{ color: "#555", fontSize: 11, fontFamily: "monospace" }}>{t.id}</div>
+                    <div style={{ color: "rgb(233, 255, 194)", fontSize: 14 }}>{t.display_name}</div>
+                    <div style={{ color: "rgb(91, 211, 151)", fontSize: 11, fontFamily: "monospace" }}>{t.id}</div>
                   </div>
                   <button onClick={() => deleteTournament(t.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
                 </div>
@@ -685,17 +685,17 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
                 <input style={{ ...inputStyle, width: "100%" }} placeholder='ID e.g. "us-open-2025"' value={newTournamentId} onChange={e => setNewTournamentId(e.target.value)} />
                 <input style={{ ...inputStyle, width: "100%" }} placeholder='Name e.g. "US Open 2025"' value={newTournamentName} onChange={e => setNewTournamentName(e.target.value)} />
               </div>
-              <button onClick={addTournament} style={{ marginTop: 8, width: "100%", background: "none", border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: "8px", cursor: "pointer", fontSize: 13 }}>+ Add Tournament</button>
+              <button onClick={addTournament} style={{ marginTop: 8, width: "100%", background: "none", border: "1px solid rgb(252, 227, 0)", color: "rgb(252, 227, 0)", borderRadius: 8, padding: "8px", cursor: "pointer", fontSize: 13 }}>+ Add Tournament</button>
             </div>
 
             {/* Groups */}
-            <div>
-              <h3 style={{ color: GOLD, fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>Groups</h3>
+            <div style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Groups</h3>
               {groups.map(g => (
-                <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,0.08)" }}>
+                <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
                   <div>
-                    <div style={{ color: "#e8dfc4", fontSize: 14 }}>{g.display_name}</div>
-                    <div style={{ color: "#555", fontSize: 11, fontFamily: "monospace" }}>{g.id}</div>
+                    <div style={{ color: "rgb(233, 255, 194)", fontSize: 14 }}>{g.display_name}</div>
+                    <div style={{ color: "rgb(91, 211, 151)", fontSize: 11, fontFamily: "monospace" }}>{g.id}</div>
                   </div>
                   <button onClick={() => deleteGroup(g.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
                 </div>
@@ -704,25 +704,25 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
                 <input style={{ ...inputStyle, width: "100%" }} placeholder='ID e.g. "college-friends"' value={newGroupId} onChange={e => setNewGroupId(e.target.value)} />
                 <input style={{ ...inputStyle, width: "100%" }} placeholder='Name e.g. "College Friends"' value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
               </div>
-              <button onClick={addGroup} style={{ marginTop: 8, width: "100%", background: "none", border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: "8px", cursor: "pointer", fontSize: 13 }}>+ Add Group</button>
+              <button onClick={addGroup} style={{ marginTop: 8, width: "100%", background: "none", border: "1px solid rgb(252, 227, 0)", color: "rgb(252, 227, 0)", borderRadius: 8, padding: "8px", cursor: "pointer", fontSize: 13 }}>+ Add Group</button>
             </div>
 
             {/* Archive */}
-            <div>
-              <h3 style={{ color: GOLD, fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>Archive Tournament</h3>
-              <p style={{ color: "#888", fontSize: 12, marginBottom: 6, lineHeight: 1.5 }}>
-                Snapshot final scores for <strong style={{ color: "#e8dfc4" }}>{tournamentName}</strong> so they can be viewed after the tournament leaves ESPN.
+            <div style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Archive Tournament</h3>
+              <p style={{ color: "#fff", fontSize: 12, marginBottom: 6, lineHeight: 1.5 }}>
+                Snapshot final scores for <strong style={{ color: "rgb(91, 211, 151)" }}>{tournamentName}</strong> so they can be viewed after the tournament leaves ESPN.
               </p>
-              <p style={{ color: "#e05252", fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
-                Only archive after the tournament is fully complete. ESPN data is only available for a limited time after the event ends.
+              <p style={{ color: "rgb(255, 114, 114)", fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
+                ⚠️ Only archive after the tournament is fully complete. ESPN data is only available for a limited time after the event ends.
               </p>
               <button
                 onClick={handleArchive}
                 disabled={archiving}
                 style={{
-                  width: "100%", background: archiving ? "#555" : isAlreadyArchived ? "none" : GOLD,
-                  border: isAlreadyArchived ? `1px solid ${GOLD}` : "none",
-                  color: archiving ? "#888" : isAlreadyArchived ? GOLD : "#0d1f14",
+                  width: "100%", background: archiving ? "#555" : isAlreadyArchived ? "none" : "rgb(252, 227, 0)",
+                  border: isAlreadyArchived ? "1px solid rgb(252, 227, 0)" : "none",
+                  color: archiving ? "#888" : isAlreadyArchived ? "rgb(252, 227, 0)" : "#0d1f14",
                   borderRadius: 8, padding: "10px", cursor: archiving ? "default" : "pointer",
                   fontSize: 13, fontWeight: 700,
                 }}
@@ -732,9 +732,9 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
             </div>
 
             {/* Golfer Roster */}
-            <div>
-              <h3 style={{ color: GOLD, fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>Golfer Roster</h3>
-              <p style={{ color: "#888", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+            <div style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Golfer Roster</h3>
+              <p style={{ color: "#fff", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
                 Pull the latest field from ESPN to update the golfer search list used when entering picks.
                 {roster.length > 0 && <span style={{ color: "#5BD397" }}> Currently {roster.length} golfers in roster.</span>}
               </p>
@@ -743,7 +743,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
                 disabled={refreshingRoster}
                 style={{
                   width: "100%", background: "none",
-                  border: `1px solid ${GOLD}`, color: GOLD,
+                  border: "1px solid rgb(252, 227, 0)", color: "rgb(252, 227, 0)",
                   borderRadius: 8, padding: "10px", cursor: refreshingRoster ? "default" : "pointer",
                   fontSize: 13, fontWeight: 700, opacity: refreshingRoster ? 0.5 : 1,
                 }}
