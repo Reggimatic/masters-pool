@@ -434,7 +434,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
   const [refreshingRoster, setRefreshingRoster] = useState(false);
 
   useEffect(() => {
-    if (tab === "picks" && roster.length === 0) {
+    if ((tab === "picks" || tab === "withdrawals") && roster.length === 0) {
       supabase.from("golfers").select("name, country").order("name").then(({ data }) => {
         setRoster(data || []);
       });
@@ -653,15 +653,24 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
 
         {tab === "withdrawals" && (
           <div>
-            <p style={{ color: "#fff", fontSize: 11, marginBottom: 16 }}>Mark golfers as withdrawn for {tournamentName}. Withdrawn golfers are treated like missed-cut players for scoring.</p>
+            <p style={{ color: "#fff", fontSize: 11, marginBottom: 16 }}>Mark golfers as withdrawn for <strong style={{ color: "rgb(91, 211, 151)" }}>{tournamentName}</strong>. Withdrawn golfers are treated like missed-cut players for scoring. This feature can also be used for players who have been disqualified.</p>
             {withdrawals.map(w => (
               <div key={w.golfer_name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
                 <span style={{ color: "rgb(233, 255, 194)", fontSize: 14 }}>{w.golfer_name}</span>
                 <button onClick={() => removeWithdrawal(w.golfer_name)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Remove</button>
               </div>
             ))}
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <input style={{ ...inputStyle, flex: 1 }} placeholder="Golfer name (e.g. Rory McIlroy)" value={newWithdrawal} onChange={e => setNewWithdrawal(e.target.value)} onKeyDown={e => e.key === "Enter" && addWithdrawal()} />
+            <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <GolferCombobox
+                  value={newWithdrawal}
+                  onChange={(name) => setNewWithdrawal(name)}
+                  roster={roster}
+                  selectedGolfers={new Set()}
+                  inputStyle={inputStyle}
+                  placeholder="Golfer name (e.g. Rory McIlroy)"
+                />
+              </div>
               <button onClick={addWithdrawal} style={{ background: "rgb(252, 227, 0)", border: "none", color: "#0d1f14", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Add</button>
             </div>
           </div>
