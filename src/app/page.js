@@ -591,10 +591,6 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#888", fontSize: 22, cursor: "pointer" }}>✕</button>
         </div>
 
-        <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 16 }}>
-          <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Tournament:</strong> {tournamentName || tournament} &nbsp;&nbsp; <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Group:</strong> {groupName || group}
-        </div>
-
         {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid rgba(201,168,76,0.15)", marginBottom: 20 }}>
           <button style={tabStyle(tab === "picks")} onClick={() => setTab("picks")}>Picks</button>
@@ -604,6 +600,9 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
 
         {tab === "picks" && (
           <>
+            <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 16 }}>
+              <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Tournament:</strong> {tournamentName || tournament} &nbsp;&nbsp; <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Group:</strong> {groupName || group}
+            </div>
             {teams.map((team, ti) => (
               <div key={ti} style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
