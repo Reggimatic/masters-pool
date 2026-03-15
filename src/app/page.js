@@ -302,7 +302,9 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
 function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, placeholder }) {
   const [query, setQuery] = useState(value || "");
   const [open, setOpen] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
   const ref = useRef(null);
+  const listRef = useRef(null);
 
   useEffect(() => { setQuery(value || ""); }, [value]);
 
@@ -320,9 +322,21 @@ function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, 
       ).slice(0, 12)
     : [];
 
+  // Reset highlight when filtered list changes
+  useEffect(() => { setHighlightIdx(-1); }, [filtered.length, query]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightIdx >= 0 && listRef.current) {
+      const item = listRef.current.children[highlightIdx];
+      if (item) item.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightIdx]);
+
   const handleSelect = (golfer) => {
     setQuery(golfer.name);
     setOpen(false);
+    setHighlightIdx(-1);
     onChange(golfer.name, golfer.country);
   };
 
@@ -334,6 +348,20 @@ function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, 
     if (!val) onChange("", "");
   };
 
+  const handleKeyDown = (e) => {
+    if (!open || filtered.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIdx(i => (i + 1) % filtered.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIdx(i => (i <= 0 ? filtered.length - 1 : i - 1));
+    } else if ((e.key === "Enter" || e.key === "Tab" || e.key === " ") && highlightIdx >= 0) {
+      e.preventDefault();
+      handleSelect(filtered[highlightIdx]);
+    }
+  };
+
   return (
     <div ref={ref} style={{ position: "relative", width: "100%" }}>
       <input
@@ -341,25 +369,27 @@ function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, 
         placeholder={placeholder}
         value={query}
         onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
         onFocus={() => { if (query.length > 0 && roster.length > 0) setOpen(true); }}
       />
       {open && filtered.length > 0 && (
-        <div style={{
+        <div ref={listRef} style={{
           position: "absolute", top: "100%", left: 0, right: 0, zIndex: 60,
           background: "#0d1f14", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 6,
           maxHeight: 200, overflowY: "auto", marginTop: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
         }}>
-          {filtered.map(g => (
+          {filtered.map((g, i) => (
             <div
               key={g.name}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(g); }}
               style={{
                 padding: "8px 12px", cursor: "pointer", fontSize: 13, color: "#e8dfc4",
                 display: "flex", alignItems: "center", gap: 8,
-                borderBottom: "1px solid rgba(201,168,76,0.08)"
+                borderBottom: "1px solid rgba(201,168,76,0.08)",
+                background: i === highlightIdx ? "rgba(201,168,76,0.15)" : "transparent"
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(201,168,76,0.1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={() => setHighlightIdx(i)}
+              onMouseLeave={() => setHighlightIdx(-1)}
             >
               <span style={{ fontSize: 16, minWidth: 22, textAlign: "center" }}>{countryFlag(g.country)}</span>
               <span>{g.name}</span>
@@ -373,10 +403,44 @@ function GolferCombobox({ value, onChange, roster, selectedGolfers, inputStyle, 
 
 // ─── Admin Panel ─────────────────────────────────────────────────────────────
 
+function EditableName({ value, onSave, style }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef(null);
 
-function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSave, onClose, avatars, onAvatarsChange, onWithdrawalsChange }) {
+  useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft.trim() && draft.trim() !== value) onSave(draft.trim());
+    else setDraft(value);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
+        style={{ ...style, background: "rgb(14, 39, 26)", border: "none", borderRadius: 4, padding: "2px 6px", outline: "none", width: "100%" }}
+      />
+    );
+  }
+
+  return (
+    <div onClick={() => { setDraft(value); setEditing(true); }} style={{ ...style, cursor: "pointer" }} title="Click to edit">
+      {value}
+    </div>
+  );
+}
+
+function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGroups, onSave, onClose, avatars, onAvatarsChange, onWithdrawalsChange }) {
   const emptyGolfer = { name: "", country: "" };
   const [tab, setTab] = useState("picks");
+  const [activeGroup, setActiveGroup] = useState(group);
+  const activeGroupName = (allGroups || []).find(g => g.id === activeGroup)?.display_name || activeGroup;
   const [teams, setTeams] = useState(
     picks.length > 0
       ? picks.map(p => ({ name: p.name, golfers: [...p.golfers.map(g => ({ name: g.name || g, country: g.country || "" })), ...Array(6).fill(null).map(() => ({ ...emptyGolfer }))].slice(0, 6) }))
@@ -384,6 +448,22 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
   );
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(null);
+
+  // Reload picks when switching groups
+  useEffect(() => {
+    if (activeGroup === group) return; // initial group already loaded via props
+    (async () => {
+      const { data } = await supabase.from("picks").select("*").eq("tournament", tournament).eq("group_name", activeGroup);
+      if (data && data.length > 0) {
+        setTeams(data.map(p => ({
+          name: p.participant,
+          golfers: [...(Array.isArray(p.golfers) ? p.golfers.map(g => typeof g === "string" ? { name: g, country: "" } : g) : []), ...Array(6).fill(null).map(() => ({ ...emptyGolfer }))].slice(0, 6)
+        })));
+      } else {
+        setTeams([{ name: "", golfers: Array(6).fill(null).map(() => ({ ...emptyGolfer })) }]);
+      }
+    })();
+  }, [activeGroup]);
 
   const uploadAvatar = async (participantName, file) => {
     if (!participantName.trim()) return;
@@ -506,6 +586,18 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
     setGroups(g => g.filter(x => x.id !== id));
   };
 
+  const renameTournament = async (id, newName) => {
+    if (!newName.trim()) return;
+    await supabase.from("tournaments").update({ display_name: newName.trim() }).eq("id", id);
+    setTournaments(t => t.map(x => x.id === id ? { ...x, display_name: newName.trim() } : x));
+  };
+
+  const renameGroup = async (id, newName) => {
+    if (!newName.trim()) return;
+    await supabase.from("groups").update({ display_name: newName.trim() }).eq("id", id);
+    setGroups(g => g.map(x => x.id === id ? { ...x, display_name: newName.trim() } : x));
+  };
+
   const handleArchive = async () => {
     const msg = isAlreadyArchived
       ? `Re-archive "${tournamentName}"? This will overwrite the previously saved results with a fresh snapshot from ESPN.`
@@ -567,7 +659,11 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
       name: t.name.trim(),
       golfers: t.golfers.filter(g => g.name.trim()).map(g => ({ name: g.name.trim(), country: g.country.trim().toUpperCase() }))
     }));
-    await onSave(clean);
+    // Save directly to the active group
+    await supabase.from("picks").delete().eq("tournament", tournament).eq("group_name", activeGroup);
+    for (const p of clean) {
+      await supabase.from("picks").insert({ participant: p.name, golfers: p.golfers, tournament, group_name: activeGroup });
+    }
     setSaving(false);
     onClose();
   };
@@ -588,7 +684,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
       <div style={{ background: "rgb(34, 86, 60)", border: "1px solid rgb(91, 211, 151)", borderRadius: 16, padding: 28, maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <h2 style={{ color: "#fff", fontSize: 22, margin: 0, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Admin</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#888", fontSize: 22, cursor: "pointer" }}>✕</button>
+          <button onClick={onClose} style={{ background: "rgb(61, 153, 107)", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "0 6px", borderRadius: 3 }}>✕</button>
         </div>
 
         {/* Tabs */}
@@ -600,8 +696,20 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
 
         {tab === "picks" && (
           <>
-            <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 16 }}>
-              <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Tournament:</strong> {tournamentName || tournament} &nbsp;&nbsp; <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Group:</strong> {groupName || group}
+            <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 16, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+              <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Tournament:</strong> {tournamentName || tournament} &nbsp;&nbsp;
+              <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Group:</strong>
+              {allGroups && allGroups.length > 1 ? (
+                <select
+                  value={activeGroup}
+                  onChange={e => setActiveGroup(e.target.value)}
+                  style={{ background: "rgb(14, 39, 26)", color: "rgb(91, 211, 151)", border: "1px solid rgb(47, 121, 84)", borderRadius: 4, padding: "2px 6px", fontSize: 12, outline: "none", cursor: "pointer" }}
+                >
+                  {allGroups.map(g => <option key={g.id} value={g.id}>{g.display_name}</option>)}
+                </select>
+              ) : (
+                <span>{activeGroupName}</span>
+              )}
             </div>
             {teams.map((team, ti) => (
               <div key={ti} style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
@@ -682,8 +790,8 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
               <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Tournaments</h3>
               {tournaments.map(t => (
                 <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
-                  <div>
-                    <div style={{ color: "rgb(233, 255, 194)", fontSize: 14 }}>{t.display_name}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <EditableName value={t.display_name} onSave={(name) => renameTournament(t.id, name)} style={{ color: "rgb(233, 255, 194)", fontSize: 14 }} />
                     <div style={{ color: "rgb(91, 211, 151)", fontSize: 11, fontFamily: "monospace" }}>{t.id}</div>
                   </div>
                   <button onClick={() => deleteTournament(t.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
@@ -701,8 +809,8 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
               <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Groups</h3>
               {groups.map(g => (
                 <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
-                  <div>
-                    <div style={{ color: "rgb(233, 255, 194)", fontSize: 14 }}>{g.display_name}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <EditableName value={g.display_name} onSave={(name) => renameGroup(g.id, name)} style={{ color: "rgb(233, 255, 194)", fontSize: 14 }} />
                     <div style={{ color: "rgb(91, 211, 151)", fontSize: 11, fontFamily: "monospace" }}>{g.id}</div>
                   </div>
                   <button onClick={() => deleteGroup(g.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
@@ -769,17 +877,117 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, onSav
 function PasswordModal({ onSuccess, onClose }) {
   const [val, setVal] = useState("");
   const [err, setErr] = useState(false);
-  const attempt = () => { if (val === ADMIN_PASSWORD) { onSuccess(); } else { setErr(true); setVal(""); } };
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [hasBiometric, setHasBiometric] = useState(false);
+  const [biometricErr, setBiometricErr] = useState(false);
+
+  // Check if WebAuthn is available and a credential is enrolled
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.PublicKeyCredential && localStorage.getItem("webauthn_cred_id")) {
+      setHasBiometric(true);
+    }
+  }, []);
+
+  const attempt = () => {
+    if (val === ADMIN_PASSWORD) {
+      // Check if biometric is available but not enrolled — offer enrollment
+      if (typeof window !== "undefined" && window.PublicKeyCredential && !localStorage.getItem("webauthn_cred_id")) {
+        setShowEnroll(true);
+      } else {
+        onSuccess();
+      }
+    } else {
+      setErr(true);
+      setVal("");
+    }
+  };
+
+  const enrollBiometric = async () => {
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "Masters Pool", id: window.location.hostname },
+          user: {
+            id: new TextEncoder().encode("admin"),
+            name: "admin",
+            displayName: "Admin",
+          },
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+          },
+          timeout: 60000,
+        },
+      });
+      if (credential) {
+        const credId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+        localStorage.setItem("webauthn_cred_id", credId);
+      }
+    } catch (e) {
+      console.error("WebAuthn enrollment failed:", e);
+    }
+    onSuccess();
+  };
+
+  const authenticateBiometric = async () => {
+    setBiometricErr(false);
+    try {
+      const credId = localStorage.getItem("webauthn_cred_id");
+      const rawId = Uint8Array.from(atob(credId), c => c.charCodeAt(0));
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials: [{ id: rawId, type: "public-key", transports: ["internal"] }],
+          userVerification: "required",
+          timeout: 60000,
+        },
+      });
+      if (assertion) onSuccess();
+    } catch (e) {
+      console.error("WebAuthn auth failed:", e);
+      setBiometricErr(true);
+    }
+  };
+
+  if (showEnroll) {
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "rgb(34, 86, 60)", border: "1px solid rgb(91, 211, 151)", borderRadius: 16, padding: 36, maxWidth: 340, width: "100%", textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>🔐</div>
+          <h2 style={{ color: "rgb(252, 227, 0)", marginBottom: 12, fontWeight: 700, fontSize: 18 }}>Enable Biometric Login?</h2>
+          <p style={{ color: "#e9ffc2", fontSize: 13, marginBottom: 20, lineHeight: 1.5 }}>Use Touch ID or Face ID to access the admin panel next time.</p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onSuccess} style={{ flex: 1, background: "none", border: "1px solid rgb(67, 170, 119)", borderRadius: 8, padding: "11px", fontSize: 15, color: "rgb(67, 170, 119)", cursor: "pointer" }}>Skip</button>
+            <button onClick={enrollBiometric} style={{ flex: 1, background: "rgb(252, 227, 0)", border: "none", borderRadius: 8, padding: "11px", fontSize: 15, fontWeight: 700, color: "#0d1f14", cursor: "pointer" }}>Enable</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "rgb(34, 86, 60)", border: "1px solid rgb(91, 211, 151)", borderRadius: 16, padding: 36, maxWidth: 340, width: "100%", textAlign: "center" }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>⛳</div>
         <h2 style={{ color: "rgb(252, 227, 0)", marginBottom: 20, fontWeight: 700 }}>Admin Access</h2>
+        {hasBiometric && (
+          <>
+            <button onClick={authenticateBiometric} style={{ width: "100%", background: "rgb(252, 227, 0)", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 700, color: "#0d1f14", cursor: "pointer", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              🔐 Use Touch ID / Face ID
+            </button>
+            {biometricErr && <p style={{ color: "#e05252", fontSize: 13, margin: "0 0 8px" }}>Biometric auth failed. Use password instead.</p>}
+            <div style={{ color: "rgb(233, 255, 194)", fontSize: 11, marginBottom: 12 }}>or enter password</div>
+          </>
+        )}
         <input type="password" value={val} onChange={e => { setVal(e.target.value); setErr(false); }} onKeyDown={e => e.key === "Enter" && attempt()} placeholder="Password"
           style={{ width: "100%", boxSizing: "border-box", background: "#ffffff", border: `2px solid ${err ? "#e05252" : "rgb(91, 211, 151)"}`, borderRadius: 8, color: "#333", padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 8 }} />
         {err && <p style={{ color: "#e05252", fontSize: 13, margin: "0 0 10px" }}>Incorrect password</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, background: "none", border: "1px solid #555", borderRadius: 8, padding: "11px", fontSize: 15, color: "#888", cursor: "pointer" }}>Cancel</button>
+          <button onClick={onClose} style={{ flex: 1, background: "none", border: "1px solid rgb(67, 170, 119)", borderRadius: 8, padding: "11px", fontSize: 15, color: "rgb(67, 170, 119)", cursor: "pointer" }}>Cancel</button>
           <button onClick={attempt} style={{ flex: 1, background: "rgb(252, 227, 0)", border: "none", borderRadius: 8, padding: "11px", fontSize: 15, fontWeight: 700, color: "#0d1f14", cursor: "pointer" }}>Enter</button>
         </div>
       </div>
@@ -1214,13 +1422,13 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
             <span style={{ color: "#5BD397" }}>|</span>
-            <a onClick={() => (authed || typeof window !== "undefined" && window.location.hostname === "localhost") ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#5BD397", cursor: "pointer", textDecoration: "underline" }}>Admin</a>
+            <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#5BD397", cursor: "pointer", textDecoration: "underline" }}>Admin</a>
           </div>
         </div>
       </div>
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
-      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} onSave={savePicks} onClose={() => setShowAdmin(false)} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
+      {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} allGroups={allGroups} onSave={savePicks} onClose={() => { setShowAdmin(false); loadPicks(); }} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
     </div>
   );
 }
