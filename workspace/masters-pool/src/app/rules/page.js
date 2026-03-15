@@ -12,7 +12,7 @@ function RulesContent() {
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e9ffc2" }}>
       <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57" }}>
-        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", fontWeight: 300, marginBottom: 2 }}>An office pool unlike any other.</div>
+        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", fontWeight: 300, marginBottom: 2 }}>An office pool unlike any other</div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Rules</h1>
       </div>
 
@@ -27,10 +27,13 @@ function RulesContent() {
         <h2 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: 20, color: "#ffffff", fontWeight: 400, textTransform: "uppercase", marginTop: 28, marginBottom: 12 }}>Scoring</h2>
         <ul style={{ listStyle: "disc", paddingLeft: 20, fontSize: 15, lineHeight: 2, color: "#e9ffc2" }}>
           <li>The top 4 golfers count toward the score for each team. The bottom 2 are dropped.</li>
-          <li>Once the cut takes place, only golfers who make the cut count toward their team's total.</li>
-          <li>If a team has less than 4 golfers make the cut, then any empty spots in their top 4 will be assigned the lowest score of all golfers who did make the cut.</li>
+          <li>Once the cut takes place, only golfers who make the cut count toward their team's total.
+            <ul style={{ listStyle: "circle", paddingLeft: 20 }}><li>For the purposes of scoring, players who withdraw or have been disqualified are treated the same as players who miss the cut.</li></ul>
+          </li>
+          <li>If a team has less than 4 golfers make the cut, then any empty spots in their top 4 will be assigned the lowest score of all golfers who did make the cut.
+            <ul style={{ listStyle: "circle", paddingLeft: 20 }}><li>Only players still participating in the tournament are considered when determining the lowest made cut score. Players who withdraw or have been disqualified are not considered.</li></ul>
+          </li>
           <li>For example, if a team has only 2 golfers make the cut, their total = (golfer 1 score) + (golfer 2 score) + (worst made cut score) + (worst made cut score).</li>
-          <li>For the purposes of scoring, players who withdraw are treated the same as players who miss the cut.</li>
           <li>If multiple golfers finish regulation tied for the lead, any extra holes played do not count toward pool scoring, regardless of the playoff format.</li>
         </ul>
 

@@ -145,6 +145,7 @@ export async function computeScores(golferNames, tournamentName) {
     return true;
   };
 
+  let worstMadeCutGolfers = [];
   if (hasCutIndicators || round >= 3) {
     cutHappened = true;
     const madeCutCompetitors = competitors.filter((c) => didMakeCut(c));
@@ -155,6 +156,30 @@ export async function computeScores(golferNames, tournamentName) {
       worstMadeCutScore = Math.max(...madeCutScores);
       const worstPlayer = madeCutCompetitors.find((c) => getRegulationScore(c) === worstMadeCutScore);
       worstMadeCutName = worstPlayer?.athlete?.displayName || worstPlayer?.athlete?.shortName || null;
+
+      // Build bottom 5 made-cut golfers for the cut line dialog
+      const withScores = madeCutCompetitors
+        .map((c) => ({ competitor: c, score: getRegulationScore(c) }))
+        .filter((x) => x.score !== null)
+        .sort((a, b) => b.score - a.score);
+      worstMadeCutGolfers = withScores.slice(0, 5).map(({ competitor: c, score }) => {
+        const name = c.athlete?.displayName || c.athlete?.shortName || "";
+        const country = espnFlagToCode(c.athlete?.flag?.href);
+        const position = positionMap.get(normalize(name)) || c.status?.position?.displayName || null;
+        const linescores = c.linescores || [];
+        const currentRoundScore = linescores.find((ls) => ls.period === round);
+        let today = null;
+        if (currentRoundScore?.displayValue != null && currentRoundScore.displayValue !== "") {
+          today = parseScore(String(currentRoundScore.displayValue));
+        }
+        let thru = null;
+        if (currentRoundScore) {
+          const holesPlayed = currentRoundScore.linescores?.length || 0;
+          if (holesPlayed === 18) thru = "F";
+          else if (holesPlayed > 0) thru = String(holesPlayed);
+        }
+        return { name, country, position, relative: score, today, thru };
+      });
     }
   }
 
@@ -296,6 +321,7 @@ export async function computeScores(golferNames, tournamentName) {
     cutHappened,
     worstMadeCutScore,
     worstMadeCutName,
+    worstMadeCutGolfers,
     allMadeCutNineScores,
     golfers,
     tournamentName: event.name || tournamentName,

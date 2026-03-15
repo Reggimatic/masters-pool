@@ -1000,6 +1000,8 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [error, setError] = useState(null);
   const [isArchived, setIsArchived] = useState(false);
   const [roundStatus, setRoundStatus] = useState(null);
+  const [worstMadeCutGolfers, setWorstMadeCutGolfers] = useState([]);
+  const [showCutDialog, setShowCutDialog] = useState(false);
 
   const expandedTeams = useRef(new Set());
   const skipReorderAnim = useRef(false);
@@ -1072,6 +1074,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       setAllMadeCutNineScores(prev => JSON.stringify(prev) === JSON.stringify(newAllMadeCutNineScores) ? prev : newAllMadeCutNineScores);
       setIsArchived(data.archived || false);
       setRoundStatus(data.statusDetail || null);
+      setWorstMadeCutGolfers(data.worstMadeCutGolfers || []);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     if (!isBackground) setLoading(false);
@@ -1157,9 +1160,26 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} />}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
-              <div style={{ color: "#5BD397" }}>
+              <div style={{ color: "#5BD397", position: "relative" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
-                  <>Lowest made cut: {worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut} ({worstMadeCutName.split(" ").length > 1 ? `${worstMadeCutName[0]}. ${worstMadeCutName.split(" ").slice(1).join(" ")}` : worstMadeCutName})</>
+                  <><span onClick={() => setShowCutDialog(!showCutDialog)} style={{ cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}>Lowest made cut:</span>{" "}{worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut}{` (${worstMadeCutName.split(" ").length > 1 ? `${worstMadeCutName[0]}. ${worstMadeCutName.split(" ").slice(1).join(" ")}` : worstMadeCutName})`}</>
+                )}
+                {showCutDialog && worstMadeCutGolfers.length > 0 && (
+                  <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "#fff", border: "1px solid #D8D8D8", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.2)", zIndex: 50, minWidth: 320, overflow: "hidden" }}>
+                    <div style={{ padding: "10px 12px", borderBottom: "1px solid #D8D8D8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ color: "#143625", fontWeight: 700, fontSize: 13 }}>Lowest Made Cut Scores</span>
+                      <button onClick={(e) => { e.stopPropagation(); setShowCutDialog(false); }} style={{ background: "none", border: "none", color: "#888", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 }}>✕</button>
+                    </div>
+                    {worstMadeCutGolfers.map((g, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: i < worstMadeCutGolfers.length - 1 ? "1px solid #D8D8D8" : "none" }}>
+                        <span style={{ fontSize: 16, minWidth: 24, textAlign: "center", flexShrink: 0 }}>{countryFlag(g.country)}</span>
+                        <span style={{ flex: 1, fontSize: 13, color: "#63605E", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
+                        <span style={{ fontSize: 12, color: "#408C64", minWidth: 28, textAlign: "right" }}>{g.today !== null ? (g.today === 0 ? "E" : g.today > 0 ? `+${g.today}` : g.today) : "—"}</span>
+                        <span style={{ fontSize: 12, color: "#408C64", minWidth: 20, textAlign: "right" }}>{g.thru || "—"}</span>
+                        <span style={{ minWidth: 32, textAlign: "right" }}><ScoreDisplay relative={g.relative} isScoring={true} /></span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               <div style={{ color: "#5BD397" }}>
