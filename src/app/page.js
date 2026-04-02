@@ -61,11 +61,8 @@ function PickerPage({ onSelect }) {
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: 24,
     }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>⛳</div>
-      <div style={{ fontSize: 13, color: GOLD, letterSpacing: 4, textTransform: "uppercase", marginBottom: 8 }}>
-        Golf Pool
-      </div>
-      <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(24px, 5vw, 40px)", color: "#e8dfc4", margin: "0 0 40px", fontWeight: 400, textAlign: "center" }}>
+      <div style={{ fontSize: 72, marginBottom: 16 }}>⛳</div>
+      <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(24px, 5vw, 40px)", color: "#fff", margin: "0 0 40px", fontWeight: 400, textAlign: "center" }}>
         Select Your Pool
       </h1>
 
@@ -75,7 +72,7 @@ function PickerPage({ onSelect }) {
         <div style={{ width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Tournament selector */}
           <div>
-            <label style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase", display: "block", marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: "rgb(233, 255, 194)", letterSpacing: 2, textTransform: "uppercase", display: "block", marginBottom: 8 }}>
               Tournament
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -84,10 +81,10 @@ function PickerPage({ onSelect }) {
                   key={t.id}
                   onClick={() => setSelectedTournament(t.id)}
                   style={{
-                    background: selectedTournament === t.id ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${selectedTournament === t.id ? GOLD : "rgba(201,168,76,0.2)"}`,
+                    background: selectedTournament === t.id ? "rgb(34, 86, 60)" : "rgb(14, 39, 26)",
+                    border: selectedTournament === t.id ? "1px solid rgb(91, 211, 151)" : "none",
                     borderRadius: 10, padding: "14px 18px", cursor: "pointer",
-                    color: selectedTournament === t.id ? "#e8dfc4" : "#888",
+                    color: selectedTournament === t.id ? "#fff" : "rgb(156, 163, 175)",
                     fontSize: 16, textAlign: "left",
                     transition: "all 0.2s",
                   }}
@@ -100,7 +97,7 @@ function PickerPage({ onSelect }) {
 
           {/* Group selector */}
           <div>
-            <label style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase", display: "block", marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: "rgb(233, 255, 194)", letterSpacing: 2, textTransform: "uppercase", display: "block", marginBottom: 8 }}>
               Group
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -109,10 +106,10 @@ function PickerPage({ onSelect }) {
                   key={g.id}
                   onClick={() => setSelectedGroup(g.id)}
                   style={{
-                    background: selectedGroup === g.id ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${selectedGroup === g.id ? GOLD : "rgba(201,168,76,0.2)"}`,
+                    background: selectedGroup === g.id ? "rgb(34, 86, 60)" : "rgb(14, 39, 26)",
+                    border: selectedGroup === g.id ? "1px solid rgb(91, 211, 151)" : "none",
                     borderRadius: 10, padding: "14px 18px", cursor: "pointer",
-                    color: selectedGroup === g.id ? "#e8dfc4" : "#888",
+                    color: selectedGroup === g.id ? "#fff" : "rgb(156, 163, 175)",
                     fontSize: 16, textAlign: "left",
                     transition: "all 0.2s",
                   }}
@@ -128,9 +125,10 @@ function PickerPage({ onSelect }) {
             disabled={!canGo}
             style={{
               marginTop: 8,
-              background: canGo ? GOLD : "rgba(201,168,76,0.15)",
-              border: "none", borderRadius: 10, padding: "14px",
-              color: canGo ? "#0d1f14" : "#555",
+              background: canGo ? "rgb(252, 227, 0)" : "none",
+              border: canGo ? "none" : "1px solid rgb(67, 170, 119)",
+              borderRadius: 10, padding: "14px",
+              color: canGo ? "rgb(13, 31, 20)" : "rgb(71, 137, 104)",
               fontSize: 16, fontWeight: 700,
               cursor: canGo ? "pointer" : "default",
               transition: "all 0.2s",
