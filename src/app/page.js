@@ -1400,7 +1400,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
               </div>
               <div style={{ color: "#5BD397" }}>
                 {isArchived ? (
-                  <span style={{ background: "rgba(201,168,76,0.15)", border: "1px solid rgba(201,168,76,0.4)", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: GOLD, letterSpacing: 1, textTransform: "uppercase" }}>Final</span>
+                  <span style={{ background: "rgb(252, 227, 0)", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: "rgb(13, 31, 20)", letterSpacing: 1, textTransform: "uppercase", fontWeight: 700 }}>Final</span>
                 ) : roundStatus || null}
               </div>
             </div>
