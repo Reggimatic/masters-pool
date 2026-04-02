@@ -1289,7 +1289,20 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       setWorstMadeCutName(prev => prev === newWorstMadeCutName ? prev : newWorstMadeCutName);
       setAllMadeCutNineScores(prev => JSON.stringify(prev) === JSON.stringify(newAllMadeCutNineScores) ? prev : newAllMadeCutNineScores);
       setIsArchived(data.archived || false);
-      setRoundStatus(data.statusDetail || null);
+      // Compute round status display
+      if (data.statusState === "pre" && data.eventStartDate && data.eventEndDate) {
+        const fmt = (iso) => {
+          const d = new Date(iso);
+          return d.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+        };
+        const start = fmt(data.eventStartDate);
+        const endDay = new Date(data.eventEndDate).toLocaleDateString("en-US", { day: "numeric", timeZone: "UTC" });
+        setRoundStatus(`${start}–${endDay}`);
+      } else if (data.statusState === "in") {
+        setRoundStatus(data.statusDetail || null);
+      } else {
+        setRoundStatus(null);
+      }
       setWorstMadeCutGolfers(data.worstMadeCutGolfers || []);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }

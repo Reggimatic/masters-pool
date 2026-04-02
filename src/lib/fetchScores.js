@@ -39,6 +39,9 @@ export async function computeScores(golferNames, tournamentName) {
 
   // Determine current round from the competition status
   const statusDetail = competition.status?.type?.detail || "";
+  const statusState = competition.status?.type?.state || "";
+  const eventStartDate = event.date || "";
+  const eventEndDate = event.endDate || "";
   const roundMatch = statusDetail.match(/Round (\d)/i);
   let round = roundMatch ? parseInt(roundMatch[1]) : 1;
 
@@ -318,6 +321,9 @@ export async function computeScores(golferNames, tournamentName) {
   return {
     round,
     statusDetail,
+    statusState,
+    eventStartDate,
+    eventEndDate,
     cutHappened,
     worstMadeCutScore,
     worstMadeCutName,
