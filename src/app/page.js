@@ -1403,8 +1403,8 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
         const start = fmt(data.eventStartDate);
         const endDay = new Date(data.eventEndDate).toLocaleDateString("en-US", { day: "numeric", timeZone: "UTC" });
         setRoundStatus(`${start}–${endDay}`);
-      } else if (data.statusState === "in") {
-        setRoundStatus(data.statusDetail || null);
+      } else if (data.statusDetail) {
+        setRoundStatus(data.statusDetail);
       } else {
         setRoundStatus(null);
       }
