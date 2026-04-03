@@ -179,8 +179,8 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped, onClick, 
       borderBottom: "1px solid #D8D8D8",
       cursor: isExpandable ? "pointer" : "default",
     }}>
-      <span style={{ fontSize: 9, width: 10, flexShrink: 0, color: "rgb(186, 186, 186)", textAlign: "center", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-        {isExpandable ? "▶" : ""}
+      <span style={{ fontSize: 10, width: 10, flexShrink: 0, color: "#807D7B", textAlign: "center", transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.25s", display: "inline-block", lineHeight: 1 }}>
+        {isExpandable ? "▼" : ""}
       </span>
       <span style={{ fontSize: 13, color: "#408C64", minWidth: 34, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0 }}>
         {inactive || isPenalty ? "—" : (golfer.position || "—")}
@@ -1525,7 +1525,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
             </div>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; })} coursePar={coursePar} isArchived={isArchived} />
+                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => { skipReorderAnim.current = true; setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; }); }} coursePar={coursePar} isArchived={isArchived} />
               </div>
             ))}
           </div>
