@@ -168,20 +168,22 @@ function ScoreDisplay({ relative, isScoring }) {
   return <span style={{ color, fontWeight: isScoring ? 700 : 400 }}>{label}</span>;
 }
 
-function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped }) {
+function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped, onClick, isExpandable, isExpanded }) {
   const flag = isPenalty ? "" : countryFlag(golfer.country);
   const inactive = isCut || isWithdrawn;
   return (
-    <div style={{
+    <div onClick={isExpandable ? onClick : undefined} style={{
       display: "flex", alignItems: "center", gap: 8,
-      padding: "6px 12px",
+      padding: "6px 12px 6px 8px",
       background: (isDropped || inactive) ? "rgb(243, 240, 236)" : "transparent",
-      borderBottom: "1px solid #D8D8D8"
+      borderBottom: "1px solid #D8D8D8",
+      cursor: isExpandable ? "pointer" : "default",
     }}>
-      <span style={{ fontSize: 13, color: "#408C64", minWidth: 34, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+      <span style={{ fontSize: 9, width: 10, flexShrink: 0, color: "rgb(186, 186, 186)", textAlign: "center", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+        {isExpandable ? "▶" : ""}
+      </span>
+      <span style={{ fontSize: 13, color: "#408C64", minWidth: 34, textAlign: "right", fontFamily: "monospace", textDecoration: isCut ? "line-through" : "none", flexShrink: 0 }}>
         {inactive || isPenalty ? "—" : (golfer.position || "—")}
-        {!inactive && !isPenalty && golfer.positionChange === "up" && <span style={{ color: "#2E7450", fontSize: 8, lineHeight: 1 }}>▲</span>}
-        {!inactive && !isPenalty && golfer.positionChange === "down" && <span style={{ color: "#BA0C2F", fontSize: 8, lineHeight: 1 }}>▼</span>}
       </span>
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
       <span style={{ flex: 1, fontSize: 13, color: inactive ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (inactive || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -218,7 +220,100 @@ function GolferRowHeader() {
   );
 }
 
-function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor }) {
+function Scorecard({ holeScores, coursePar }) {
+  if (!holeScores || holeScores.length === 0) return null;
+
+  const cellW = 28;
+  const labelW = 42;
+
+  const getCellBg = (toPar) => {
+    if (toPar <= -2) return "rgba(252, 227, 0, 0.35)";
+    if (toPar === -1) return "rgba(91, 211, 151, 0.3)";
+    if (toPar === 1) return "rgba(220, 60, 60, 0.25)";
+    if (toPar >= 2) return "rgba(220, 60, 60, 0.45)";
+    return "transparent";
+  };
+
+  const cellStyle = (toPar) => ({
+    width: cellW, minWidth: cellW, textAlign: "center", fontSize: 11,
+    padding: "4px 0", background: getCellBg(toPar), color: "rgb(99, 96, 94)", fontWeight: 400,
+  });
+
+  const headerCell = {
+    width: cellW, minWidth: cellW, textAlign: "center", fontSize: 11,
+    padding: "4px 0", color: "rgb(65, 65, 65)", fontWeight: 700,
+  };
+
+  const subtotalCell = () => ({
+    width: cellW + 4, minWidth: cellW + 4, textAlign: "center", fontSize: 11,
+    padding: "4px 0", color: "rgb(99, 96, 94)", fontWeight: 400,
+  });
+
+  const borderR = "1px solid #ddd";
+
+  const labelStyle = {
+    width: labelW, minWidth: labelW, fontSize: 11, fontWeight: 700,
+    padding: "4px 4px", color: "rgb(65, 65, 65)", textAlign: "left",
+    position: "sticky", left: 0, background: "#fff", zIndex: 1,
+    borderRight: borderR,
+  };
+
+  // Derive par from coursePar or from holeScores
+  const par = coursePar || (() => {
+    for (const r of holeScores) {
+      if (r.holes.length === 18) return r.holes.map(h => h.par);
+    }
+    return null;
+  })();
+
+  const parTotal = par ? par.reduce((s, v) => s + v, 0) : null;
+
+  const holes = Array.from({ length: 18 }, (_, i) => i + 1);
+
+  return (
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 0 4px", background: "#fff", borderRadius: 0, padding: "0 0 6px", borderBottom: "1px solid rgb(42, 170, 106)", fontSize: 11 }}>
+      <table style={{ borderCollapse: "collapse", whiteSpace: "nowrap" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #d8d8d8" }}>
+            <td style={labelStyle}>HOLE</td>
+            {holes.slice(0, 9).map(h => <td key={h} style={{ ...headerCell, ...(h === 9 && { borderRight: borderR }) }}>{h}</td>)}
+            {holes.slice(9, 18).map(h => <td key={h} style={{ ...headerCell, ...(h === 18 && { borderRight: borderR }) }}>{h}</td>)}
+            <td style={{ ...headerCell, width: cellW + 4, minWidth: cellW + 4 }}>TOT</td>
+          </tr>
+          {par && (
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400 }}>PAR</td>
+              {par.slice(0, 9).map((p, i) => <td key={i} style={{ ...cellStyle(0), ...(i === 8 && { borderRight: borderR }) }}>{p}</td>)}
+              {par.slice(9, 18).map((p, i) => <td key={i + 9} style={{ ...cellStyle(0), ...(i === 8 && { borderRight: borderR }) }}>{p}</td>)}
+              <td style={subtotalCell()}>{parTotal}</td>
+            </tr>
+          )}
+        </thead>
+        <tbody>
+          {holeScores.map((round) => {
+            const holeMap = new Map(round.holes.map(h => [h.hole, h]));
+            return (
+              <tr key={round.round} style={{ borderTop: "1px solid #eee", background: "rgb(250, 250, 250)" }}>
+                <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "rgb(250, 250, 250)" }}>R{round.round}</td>
+                {holes.slice(0, 9).map(h => {
+                  const d = holeMap.get(h);
+                  return <td key={h} style={{ ...cellStyle(d?.toPar ?? 0), ...(h === 9 && { borderRight: borderR }) }}>{d?.strokes ?? ""}</td>;
+                })}
+                {holes.slice(9, 18).map(h => {
+                  const d = holeMap.get(h);
+                  return <td key={h} style={{ ...cellStyle(d?.toPar ?? 0), ...(h === 18 && { borderRight: borderR }) }}>{d?.strokes ?? ""}</td>;
+                })}
+                <td style={subtotalCell()}>{round.total ?? ""}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor, expandedGolfers, onGolferToggle, coursePar, isArchived }) {
   const madeCut = team.golfers.filter(g => !g.missedCut);
   const missedCut = team.golfers.filter(g => g.missedCut);
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
@@ -252,7 +347,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
   const formatScore = (s) => s === null || s === undefined ? "" : s === 0 ? "E" : s > 0 ? `+${s}` : `${s}`;
   const previewItems = scoringGolfers.map((g, i) => {
     const lastName = g.name.split(" ").pop();
-    return <span key={i}>{i > 0 && ", "}{lastName}{g.positionChange === "up" && <span style={{ color: "#2E7450", fontSize: 8 }}> ▲</span>}{g.positionChange === "down" && <span style={{ color: "#BA0C2F", fontSize: 8 }}> ▼</span>}</span>;
+    return <span key={i}>{i > 0 && ", "}{lastName}</span>;
   });
 
   return (
@@ -284,9 +379,19 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
         <div style={{ padding: 10 }}>
           <div>
             <GolferRowHeader />
-            {scoringGolfers.map(g => <GolferRow key={g.name} golfer={g} isCut={false} isPenalty={false} isDropped={false} />)}
+            {scoringGolfers.map(g => (
+              <div key={g.name}>
+                <GolferRow golfer={g} isCut={false} isPenalty={false} isDropped={false} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && g.holeScores?.length > 0} isExpanded={expandedGolfers?.has(g.name)} />
+                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} />}
+              </div>
+            ))}
             {Array.from({ length: penaltySlots }).map((_, i) => <GolferRow key={`penalty-${i}`} golfer={{ relative: worstMadeCut }} isCut={false} isPenalty={true} isDropped={false} />)}
-            {droppedGolfers.map(g => <GolferRow key={g.name} golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} />)}
+            {droppedGolfers.map(g => (
+              <div key={g.name}>
+                <GolferRow golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && g.holeScores?.length > 0} isExpanded={expandedGolfers?.has(g.name)} />
+                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} />}
+              </div>
+            ))}
           </div>
         </div>
         </div>
@@ -1216,6 +1321,8 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [roundStatus, setRoundStatus] = useState(null);
   const [worstMadeCutGolfers, setWorstMadeCutGolfers] = useState([]);
   const [showCutDialog, setShowCutDialog] = useState(false);
+  const [coursePar, setCoursePar] = useState(null);
+  const [expandedGolfers, setExpandedGolfers] = useState(new Set());
 
   const expandedTeams = useRef(new Set());
   const skipReorderAnim = useRef(false);
@@ -1302,6 +1409,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
         setRoundStatus(null);
       }
       setWorstMadeCutGolfers(data.worstMadeCutGolfers || []);
+      if (data.coursePar) setCoursePar(data.coursePar);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     if (!isBackground) setLoading(false);
@@ -1320,7 +1428,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false };
+      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false, holeScores: liveScores[name]?.holeScores || [] };
     });
     let total = 0;
     if (!cutHappened) {
@@ -1417,7 +1525,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
             </div>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} />
+                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; })} coursePar={coursePar} isArchived={isArchived} />
               </div>
             ))}
           </div>

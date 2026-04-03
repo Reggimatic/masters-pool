@@ -53,6 +53,26 @@ export async function computeScores(golferNames, tournamentName) {
   // Cap round at 4 — playoff holes should not affect pool scoring
   if (round > 4) round = 4;
 
+  // Compute course par from the first competitor with a complete round
+  let coursePar = null;
+  for (const c of competitors) {
+    const ls = c.linescores || [];
+    for (const roundLs of ls) {
+      const holes = roundLs.linescores || [];
+      if (holes.length === 18) {
+        coursePar = [];
+        // Sort by hole number (period)
+        const sorted = [...holes].sort((a, b) => a.period - b.period);
+        for (const h of sorted) {
+          const rel = parseRelativeHole(h.scoreType?.displayValue);
+          coursePar.push(h.value - rel);
+        }
+        break;
+      }
+    }
+    if (coursePar) break;
+  }
+
   // Build a name-lookup map: normalize names for fuzzy matching
   const normalize = (n) =>
     n?.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
@@ -270,13 +290,32 @@ export async function computeScores(golferNames, tournamentName) {
       else if (holesPlayed > 0) thru = String(holesPlayed);
     }
 
-    // Compute cumulative score at each 9-hole checkpoint
+    // Compute cumulative score at each 9-hole checkpoint + hole-by-hole scores
     const nineScores = [];
+    const holeScores = [];
     let cumulative = 0;
     for (let r = 1; r <= 4; r++) {
       const rs = linescores.find((ls) => ls.period === r);
       const holes = rs?.linescores || [];
       if (holes.length === 0) break;
+
+      // Extract hole-by-hole data for this round
+      const sorted = [...holes].sort((a, b) => a.period - b.period);
+      const roundHoles = sorted.map((h) => {
+        const rel = parseRelativeHole(h.scoreType?.displayValue);
+        return { hole: h.period, strokes: h.value, toPar: rel, par: h.value - rel };
+      });
+      const front9Holes = roundHoles.filter((h) => h.hole <= 9);
+      const back9Holes = roundHoles.filter((h) => h.hole >= 10);
+      const outStrokes = front9Holes.reduce((s, h) => s + h.strokes, 0);
+      const inStrokes = back9Holes.reduce((s, h) => s + h.strokes, 0);
+      holeScores.push({
+        round: r,
+        holes: roundHoles,
+        out: front9Holes.length === 9 ? outStrokes : null,
+        in: back9Holes.length === 9 ? inStrokes : null,
+        total: rs.value || (front9Holes.length === 9 && back9Holes.length === 9 ? outStrokes + inStrokes : null),
+      });
 
       const front9 = holes.slice(0, 9);
       const back9 = holes.slice(9, 18);
@@ -315,7 +354,7 @@ export async function computeScores(golferNames, tournamentName) {
       else if (currentPos > prevPos) positionChange = "down";
     }
 
-    golfers[name] = { relative, today, thru, position, positionChange, missedCut, withdrawn, nineScores };
+    golfers[name] = { relative, today, thru, position, positionChange, missedCut, withdrawn, nineScores, holeScores };
   }
 
   return {
@@ -324,6 +363,7 @@ export async function computeScores(golferNames, tournamentName) {
     statusState,
     eventStartDate,
     eventEndDate,
+    coursePar,
     cutHappened,
     worstMadeCutScore,
     worstMadeCutName,
