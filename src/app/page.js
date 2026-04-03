@@ -223,7 +223,7 @@ function GolferRowHeader() {
 function Scorecard({ holeScores, coursePar }) {
   if (!holeScores || holeScores.length === 0) return null;
 
-  const cellW = 28;
+  const cellW = 27;
   const labelW = 42;
 
   const getCellBg = (toPar) => {
@@ -266,26 +266,35 @@ function Scorecard({ holeScores, coursePar }) {
     return null;
   })();
 
-  const parTotal = par ? par.reduce((s, v) => s + v, 0) : null;
+  const parOut = par ? par.slice(0, 9).reduce((s, v) => s + v, 0) : null;
+  const parIn = par ? par.slice(9, 18).reduce((s, v) => s + v, 0) : null;
+  const parTotal = par ? parOut + parIn : null;
+
+  const subtotalHeaderCell = { ...headerCell, width: cellW + 4, minWidth: cellW + 4, borderLeft: borderR };
+  const subtotalDataCell = { ...subtotalCell(), borderLeft: borderR };
 
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
 
   return (
     <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 0 4px", background: "#fff", borderRadius: 0, padding: "0 0 6px", borderBottom: "1px solid rgb(42, 170, 106)", fontSize: 11 }}>
-      <table style={{ borderCollapse: "collapse", whiteSpace: "nowrap" }}>
+      <table style={{ borderCollapse: "collapse", whiteSpace: "nowrap", minWidth: "100%" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid #d8d8d8" }}>
             <td style={labelStyle}>HOLE</td>
-            {holes.slice(0, 9).map(h => <td key={h} style={{ ...headerCell, ...(h === 9 && { borderRight: borderR }) }}>{h}</td>)}
-            {holes.slice(9, 18).map(h => <td key={h} style={{ ...headerCell, ...(h === 18 && { borderRight: borderR }) }}>{h}</td>)}
-            <td style={{ ...headerCell, width: cellW + 4, minWidth: cellW + 4 }}>TOT</td>
+            {holes.slice(0, 9).map(h => <td key={h} style={headerCell}>{h}</td>)}
+            <td style={{ ...subtotalHeaderCell, borderRight: borderR }}>OUT</td>
+            {holes.slice(9, 18).map(h => <td key={h} style={headerCell}>{h}</td>)}
+            <td style={subtotalHeaderCell}>IN</td>
+            <td style={subtotalHeaderCell}>TOT</td>
           </tr>
           {par && (
             <tr style={{ borderBottom: "1px solid #eee" }}>
               <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400 }}>PAR</td>
-              {par.slice(0, 9).map((p, i) => <td key={i} style={{ ...cellStyle(0), ...(i === 8 && { borderRight: borderR }) }}>{p}</td>)}
-              {par.slice(9, 18).map((p, i) => <td key={i + 9} style={{ ...cellStyle(0), ...(i === 8 && { borderRight: borderR }) }}>{p}</td>)}
-              <td style={subtotalCell()}>{parTotal}</td>
+              {par.slice(0, 9).map((p, i) => <td key={i} style={cellStyle(0)}>{p}</td>)}
+              <td style={{ ...subtotalDataCell, borderRight: borderR }}>{parOut}</td>
+              {par.slice(9, 18).map((p, i) => <td key={i + 9} style={cellStyle(0)}>{p}</td>)}
+              <td style={subtotalDataCell}>{parIn}</td>
+              <td style={subtotalDataCell}>{parTotal}</td>
             </tr>
           )}
         </thead>
@@ -297,13 +306,15 @@ function Scorecard({ holeScores, coursePar }) {
                 <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "rgb(250, 250, 250)" }}>R{round.round}</td>
                 {holes.slice(0, 9).map(h => {
                   const d = holeMap.get(h);
-                  return <td key={h} style={{ ...cellStyle(d?.toPar ?? 0), ...(h === 9 && { borderRight: borderR }) }}>{d?.strokes ?? ""}</td>;
+                  return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
                 })}
+                <td style={{ ...subtotalDataCell, borderRight: borderR }}>{round.out ?? ""}</td>
                 {holes.slice(9, 18).map(h => {
                   const d = holeMap.get(h);
-                  return <td key={h} style={{ ...cellStyle(d?.toPar ?? 0), ...(h === 18 && { borderRight: borderR }) }}>{d?.strokes ?? ""}</td>;
+                  return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
                 })}
-                <td style={subtotalCell()}>{round.total ?? ""}</td>
+                <td style={subtotalDataCell}>{round.in ?? ""}</td>
+                <td style={subtotalDataCell}>{round.total ?? ""}</td>
               </tr>
             );
           })}
