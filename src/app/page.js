@@ -188,7 +188,7 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped, onClick, 
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
       <span style={{ flex: 1, fontSize: 13, color: inactive ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (inactive || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isPenalty ? "Missed cut penalty" : golfer.name}
-        {inactive && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(WD)" : "(CUT)"}</span>}
+        {inactive && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(WD)" : "(MC)"}</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
         {!inactive && !isPenalty && golfer.today !== null && golfer.today !== undefined
