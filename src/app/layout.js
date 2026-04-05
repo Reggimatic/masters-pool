@@ -15,6 +15,11 @@ export const metadata = {
   title: "Leader Board",
   description: "Golf pool leaderboard",
   manifest: "/manifest.json",
+  formatDetection: {
+    telephone: false,
+    address: false,
+    email: false,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
