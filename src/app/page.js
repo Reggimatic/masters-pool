@@ -743,7 +743,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
       const res = await fetch("/api/seed-golfers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
+        body: JSON.stringify({ tournamentName })
       });
       const data = await res.json();
       if (data.error) { alert("Refresh failed: " + data.error); return; }

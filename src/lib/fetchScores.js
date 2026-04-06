@@ -394,27 +394,36 @@ function espnFlagToCode(flagHref) {
 }
 
 /**
- * Fetch all competitors from the ESPN scoreboard for a given tournament.
- * Returns name + country code for each golfer in the field.
+ * Fetch all competitors from ESPN for a given tournament.
+ * Tries the season endpoint first (has future fields), falls back to live scoreboard.
  */
 export async function fetchAllCompetitors(tournamentName) {
-  const espnRes = await fetch(
+  const year = new Date().getFullYear();
+  const stripYear = (s) => (s || "").replace(/^\d{4}\s+/, "").toLowerCase();
+  const needle = stripYear(tournamentName);
+
+  // Try season endpoint first — it has fields for upcoming tournaments
+  for (const url of [
+    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${year}`,
     "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
-    { next: { revalidate: 0 } }
-  );
-  if (!espnRes.ok) {
-    return { error: `ESPN API returned ${espnRes.status}`, status: 502 };
+  ]) {
+    const espnRes = await fetch(url, { next: { revalidate: 0 } });
+    if (!espnRes.ok) continue;
+    const espn = await espnRes.json();
+    const events = espn.events || [];
+    const event = events.find((e) => {
+      const espnName = (e.name || "").toLowerCase();
+      return espnName.includes(needle) || stripYear(e.name).includes(needle);
+    });
+    if (event && (event.competitions?.[0]?.competitors?.length || 0) > 0) {
+      return buildCompetitorResult(event);
+    }
   }
 
-  const espn = await espnRes.json();
-  const events = espn.events || [];
-  const event = tournamentName
-    ? events.find((e) => e.name?.toLowerCase().includes(tournamentName.toLowerCase())) || events[0]
-    : events[0];
+  return { error: "Tournament not found on ESPN", status: 404 };
+}
 
-  if (!event) {
-    return { error: "No active tournament found on ESPN", status: 404 };
-  }
+function buildCompetitorResult(event) {
 
   const competitors = event.competitions?.[0]?.competitors || [];
   const golfers = competitors.map((c) => {
