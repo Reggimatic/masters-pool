@@ -724,8 +724,10 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tournamentId: tournament, tournamentName })
       });
-      const data = await res.json();
-      if (data.error) { alert("Archive failed: " + data.error); return; }
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text || `Server returned ${res.status}` }; }
+      if (!res.ok || data.error) { alert("Archive failed: " + (data.error || `Status ${res.status}`)); return; }
       setIsAlreadyArchived(true);
       alert("Tournament archived successfully! Final scores have been saved.");
     } catch (e) {

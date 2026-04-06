@@ -19,15 +19,17 @@ export async function computeScores(golferNames, tournamentName) {
 
   const espn = await espnRes.json();
 
-  // Find the matching event (or use the first/only one)
+  // Find the matching event — strip leading year (e.g. "2026 Masters" → "Masters")
   const events = espn.events || [];
-  const event =
-    events.find((e) =>
-      e.name?.toLowerCase().includes(tournamentName?.toLowerCase())
-    ) || events[0];
+  const stripYear = (s) => (s || "").replace(/^\d{4}\s+/, "").toLowerCase();
+  const needle = stripYear(tournamentName);
+  const event = events.find((e) => {
+    const espnName = (e.name || "").toLowerCase();
+    return espnName.includes(needle) || stripYear(e.name).includes(needle);
+  });
 
   if (!event) {
-    return { error: "No active tournament found on ESPN", status: 404 };
+    return { error: "Tournament not yet available on ESPN", status: 404 };
   }
 
   const competition = event.competitions?.[0];

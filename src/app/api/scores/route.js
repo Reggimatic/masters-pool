@@ -37,6 +37,26 @@ export async function POST(request) {
   // Live ESPN fetch
   const result = await computeScores(golferNames, tournamentName);
 
+  // Tournament not on ESPN yet — return a pre-tournament placeholder
+  if (result.status === 404) {
+    const emptyGolfers = {};
+    for (const name of golferNames) {
+      emptyGolfers[name] = { relative: null, today: null, thru: null, position: null, missedCut: false };
+    }
+    return Response.json({
+      round: 0,
+      statusState: "pre",
+      statusDetail: null,
+      golfers: emptyGolfers,
+      cutHappened: false,
+      worstMadeCutScore: null,
+      worstMadeCutName: null,
+      allMadeCutNineScores: [],
+      tournamentName,
+      notStarted: true,
+    });
+  }
+
   if (result.error) {
     return Response.json({ error: result.error }, { status: result.status || 500 });
   }
