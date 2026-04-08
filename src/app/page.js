@@ -317,16 +317,16 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country }) {
               onError={(e) => { e.target.style.display = "none"; }}
             />
           )}
-          <div style={{ fontSize: 11, color: "#63605E", lineHeight: 1.7, marginTop: -2 }}>
+          <div style={{ fontSize: 11, color: "#63605E", lineHeight: 1.7, marginTop: -5 }}>
             {bio.country && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
                 <span style={{ fontSize: 15 }}>{countryFlag(country)}</span>
                 {bio.country}
               </div>
             )}
-            {bio.dob && <div style={{ fontSize: 10, marginTop: -2 }}><span style={{ color: "#63605E" }}>Birthdate:</span> <span style={{ color: "#999" }}>{bio.dob}{bio.age ? ` (${bio.age})` : ""}</span></div>}
-            {bio.college && <div style={{ fontSize: 10 }}><span style={{ color: "#63605E" }}>College:</span> <span style={{ color: "#999" }}>{bio.college}</span></div>}
-            {bio.turnedPro && <div style={{ fontSize: 10 }}><span style={{ color: "#63605E" }}>Turned Pro:</span> <span style={{ color: "#999" }}>{bio.turnedPro}</span></div>}
+            {bio.dob && <div style={{ fontSize: 11, marginTop: -2 }}><span style={{ color: "#63605E" }}>Birthdate:</span> <span style={{ color: "#999" }}>{bio.dob}{bio.age ? ` (${bio.age})` : ""}</span></div>}
+            {bio.college && <div style={{ fontSize: 11 }}><span style={{ color: "#63605E" }}>College:</span> <span style={{ color: "#999" }}>{bio.college}</span></div>}
+            {bio.turnedPro && <div style={{ fontSize: 11 }}><span style={{ color: "#63605E" }}>Turned Pro:</span> <span style={{ color: "#999" }}>{bio.turnedPro}</span></div>}
           </div>
         </div>
       )}
