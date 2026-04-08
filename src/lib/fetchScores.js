@@ -424,13 +424,13 @@ export async function fetchAllCompetitors(tournamentName) {
 }
 
 function buildCompetitorResult(event) {
-
   const competitors = event.competitions?.[0]?.competitors || [];
   const golfers = competitors.map((c) => {
     const a = c.athlete || {};
     return {
       name: a.displayName || a.shortName || "",
       country: espnFlagToCode(a.flag?.href),
+      espnId: c.id || null,
     };
   }).filter((g) => g.name);
 

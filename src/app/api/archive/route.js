@@ -57,6 +57,7 @@ export async function POST(request) {
       const golferRows = fieldResult.golfers.map((g) => ({
         name: g.name,
         country: g.country,
+        espn_id: g.espnId,
         updated_at: new Date().toISOString(),
       }));
       await supabase.from("golfers").upsert(golferRows, { onConflict: "name" });

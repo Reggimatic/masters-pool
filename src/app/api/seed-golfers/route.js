@@ -14,6 +14,7 @@ export async function POST(request) {
   const rows = result.golfers.map((g) => ({
     name: g.name,
     country: g.country,
+    espn_id: g.espnId,
     updated_at: new Date().toISOString(),
   }));
 

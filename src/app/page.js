@@ -220,8 +220,38 @@ function GolferRowHeader() {
   );
 }
 
-function Scorecard({ holeScores, coursePar }) {
-  if (!holeScores || holeScores.length === 0) return null;
+const bioCache = {};
+
+function Scorecard({ holeScores, coursePar, golferName, espnId, country }) {
+  const hasHoleData = holeScores && holeScores.length > 0;
+  const [bio, setBio] = useState(bioCache[espnId] || null);
+
+  useEffect(() => {
+    if (!espnId || bioCache[espnId]) return;
+    fetch(`https://site.web.api.espn.com/apis/common/v3/sports/golf/pga/athletes/${espnId}`)
+      .then(r => r.json())
+      .then(d => {
+        const a = d.athlete || d;
+        // Reformat DOB from ESPN's d/m/yyyy to m/d/yyyy
+        let dob = a.displayDOB || null;
+        if (dob) {
+          const parts = dob.split("/");
+          if (parts.length === 3) dob = `${parts[1]}/${parts[0]}/${parts[2]}`;
+        }
+        const info = {
+          headshot: a.headshot?.href || null,
+          dob,
+          age: a.age || null,
+          college: a.college?.name || null,
+          turnedPro: a.turnedPro || null,
+          flagUrl: a.flag?.href || null,
+          country: a.flag?.alt || null,
+        };
+        bioCache[espnId] = info;
+        setBio(info);
+      })
+      .catch(() => {});
+  }, [espnId]);
 
   const cellW = 27;
   const labelW = 42;
@@ -259,12 +289,12 @@ function Scorecard({ holeScores, coursePar }) {
   };
 
   // Derive par from coursePar or from holeScores
-  const par = coursePar || (() => {
+  const par = hasHoleData ? (coursePar || (() => {
     for (const r of holeScores) {
       if (r.holes.length === 18) return r.holes.map(h => h.par);
     }
     return null;
-  })();
+  })()) : null;
 
   const parOut = par ? par.slice(0, 9).reduce((s, v) => s + v, 0) : null;
   const parIn = par ? par.slice(9, 18).reduce((s, v) => s + v, 0) : null;
@@ -276,50 +306,77 @@ function Scorecard({ holeScores, coursePar }) {
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
 
   return (
-    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 0 4px", background: "#fff", borderRadius: 0, padding: "0 0 6px", borderBottom: "1px solid rgb(42, 170, 106)", fontSize: 11 }}>
-      <table style={{ borderCollapse: "collapse", whiteSpace: "nowrap", minWidth: "100%" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid #d8d8d8" }}>
-            <td style={labelStyle}>HOLE</td>
-            {holes.slice(0, 9).map(h => <td key={h} style={headerCell}>{h}</td>)}
-            <td style={{ ...subtotalHeaderCell, borderRight: borderR }}>OUT</td>
-            {holes.slice(9, 18).map(h => <td key={h} style={headerCell}>{h}</td>)}
-            <td style={subtotalHeaderCell}>IN</td>
-            <td style={subtotalHeaderCell}>TOT</td>
-          </tr>
-          {par && (
-            <tr style={{ borderBottom: "1px solid #eee" }}>
-              <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400 }}>PAR</td>
-              {par.slice(0, 9).map((p, i) => <td key={i} style={cellStyle(0)}>{p}</td>)}
-              <td style={{ ...subtotalDataCell, borderRight: borderR }}>{parOut}</td>
-              {par.slice(9, 18).map((p, i) => <td key={i + 9} style={cellStyle(0)}>{p}</td>)}
-              <td style={subtotalDataCell}>{parIn}</td>
-              <td style={subtotalDataCell}>{parTotal}</td>
-            </tr>
+    <div style={{ background: "#fff", borderBottom: "1px solid rgb(42, 170, 106)", padding: "0 0 6px" }}>
+      {espnId && bio && (
+        <div style={{ display: "flex", gap: 12, padding: "10px 12px" }}>
+          {bio.headshot && (
+            <img
+              src={`https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${espnId}.png&w=96&h=70`}
+              alt={golferName}
+              style={{ width: 96, height: 70, objectFit: "cover", borderRadius: 4, background: "#eee", flexShrink: 0 }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
           )}
-        </thead>
-        <tbody>
-          {holeScores.map((round) => {
-            const holeMap = new Map(round.holes.map(h => [h.hole, h]));
-            return (
-              <tr key={round.round} style={{ borderTop: "1px solid #eee", background: "rgb(250, 250, 250)" }}>
-                <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "rgb(250, 250, 250)" }}>R{round.round}</td>
-                {holes.slice(0, 9).map(h => {
-                  const d = holeMap.get(h);
-                  return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
-                })}
-                <td style={{ ...subtotalDataCell, borderRight: borderR }}>{round.out ?? ""}</td>
-                {holes.slice(9, 18).map(h => {
-                  const d = holeMap.get(h);
-                  return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
-                })}
-                <td style={subtotalDataCell}>{round.in ?? ""}</td>
-                <td style={subtotalDataCell}>{round.total ?? ""}</td>
+          <div style={{ fontSize: 11, color: "#63605E", lineHeight: 1.7, marginTop: -2 }}>
+            {bio.country && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+                <span style={{ fontSize: 15 }}>{countryFlag(country)}</span>
+                {bio.country}
+              </div>
+            )}
+            {bio.dob && <div style={{ fontSize: 10, marginTop: -2 }}><span style={{ color: "#63605E" }}>Birthdate:</span> <span style={{ color: "#999" }}>{bio.dob}{bio.age ? ` (${bio.age})` : ""}</span></div>}
+            {bio.college && <div style={{ fontSize: 10 }}><span style={{ color: "#63605E" }}>College:</span> <span style={{ color: "#999" }}>{bio.college}</span></div>}
+            {bio.turnedPro && <div style={{ fontSize: 10 }}><span style={{ color: "#63605E" }}>Turned Pro:</span> <span style={{ color: "#999" }}>{bio.turnedPro}</span></div>}
+          </div>
+        </div>
+      )}
+      {hasHoleData && (
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", fontSize: 11 }}>
+          <table style={{ borderCollapse: "collapse", whiteSpace: "nowrap", minWidth: "100%" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #d8d8d8" }}>
+                <td style={labelStyle}>HOLE</td>
+                {holes.slice(0, 9).map(h => <td key={h} style={headerCell}>{h}</td>)}
+                <td style={{ ...subtotalHeaderCell, borderRight: borderR }}>OUT</td>
+                {holes.slice(9, 18).map(h => <td key={h} style={headerCell}>{h}</td>)}
+                <td style={subtotalHeaderCell}>IN</td>
+                <td style={subtotalHeaderCell}>TOT</td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+              {par && (
+                <tr style={{ borderBottom: "1px solid #eee" }}>
+                  <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400 }}>PAR</td>
+                  {par.slice(0, 9).map((p, i) => <td key={i} style={cellStyle(0)}>{p}</td>)}
+                  <td style={{ ...subtotalDataCell, borderRight: borderR }}>{parOut}</td>
+                  {par.slice(9, 18).map((p, i) => <td key={i + 9} style={cellStyle(0)}>{p}</td>)}
+                  <td style={subtotalDataCell}>{parIn}</td>
+                  <td style={subtotalDataCell}>{parTotal}</td>
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {holeScores.map((round) => {
+                const holeMap = new Map(round.holes.map(h => [h.hole, h]));
+                return (
+                  <tr key={round.round} style={{ borderTop: "1px solid #eee", background: "rgb(250, 250, 250)" }}>
+                    <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "rgb(250, 250, 250)" }}>R{round.round}</td>
+                    {holes.slice(0, 9).map(h => {
+                      const d = holeMap.get(h);
+                      return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
+                    })}
+                    <td style={{ ...subtotalDataCell, borderRight: borderR }}>{round.out ?? ""}</td>
+                    {holes.slice(9, 18).map(h => {
+                      const d = holeMap.get(h);
+                      return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
+                    })}
+                    <td style={subtotalDataCell}>{round.in ?? ""}</td>
+                    <td style={subtotalDataCell}>{round.total ?? ""}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -392,15 +449,15 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
             <GolferRowHeader />
             {scoringGolfers.map(g => (
               <div key={g.name}>
-                <GolferRow golfer={g} isCut={false} isPenalty={false} isDropped={false} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && g.holeScores?.length > 0} isExpanded={expandedGolfers?.has(g.name)} />
-                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} />}
+                <GolferRow golfer={g} isCut={false} isPenalty={false} isDropped={false} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && (g.holeScores?.length > 0 || g.espnId)} isExpanded={expandedGolfers?.has(g.name)} />
+                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} golferName={g.name} espnId={g.espnId} country={g.country} />}
               </div>
             ))}
             {Array.from({ length: penaltySlots }).map((_, i) => <GolferRow key={`penalty-${i}`} golfer={{ relative: worstMadeCut }} isCut={false} isPenalty={true} isDropped={false} />)}
             {droppedGolfers.map(g => (
               <div key={g.name}>
-                <GolferRow golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && g.holeScores?.length > 0} isExpanded={expandedGolfers?.has(g.name)} />
-                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} />}
+                <GolferRow golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && (g.holeScores?.length > 0 || g.espnId)} isExpanded={expandedGolfers?.has(g.name)} />
+                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} golferName={g.name} espnId={g.espnId} country={g.country} />}
               </div>
             ))}
           </div>
@@ -1336,6 +1393,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [showCutDialog, setShowCutDialog] = useState(false);
   const [coursePar, setCoursePar] = useState(null);
   const [expandedGolfers, setExpandedGolfers] = useState(new Set());
+  const [espnIds, setEspnIds] = useState({});
 
   const expandedTeams = useRef(new Set());
   const skipReorderAnim = useRef(false);
@@ -1368,6 +1426,16 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       }));
       setPicks(mapped);
       loadAvatars(mapped.map(p => p.name));
+      // Load ESPN IDs for headshots
+      const allNames = [...new Set(mapped.flatMap(p => p.golfers.map(g => g.name)))];
+      if (allNames.length > 0) {
+        const { data: golferData } = await supabase.from("golfers").select("name, espn_id").in("name", allNames);
+        if (golferData) {
+          const idMap = {};
+          golferData.forEach(g => { if (g.espn_id) idMap[g.name] = g.espn_id; });
+          setEspnIds(idMap);
+        }
+      }
     }
   }, [tournament, group, loadAvatars]);
 
@@ -1441,7 +1509,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false, holeScores: liveScores[name]?.holeScores || [] };
+      return { name, country: g.country || "", espnId: espnIds[name] || null, relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false, holeScores: liveScores[name]?.holeScores || [] };
     });
     let total = 0;
     if (!cutHappened) {
