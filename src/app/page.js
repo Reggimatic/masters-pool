@@ -176,7 +176,7 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped, onClick, 
       display: "flex", alignItems: "center", gap: 8,
       padding: "6px 12px 6px 8px",
       background: (isDropped || inactive) ? "rgb(243, 240, 236)" : "transparent",
-      borderBottom: "1px solid #D8D8D8",
+      borderBottom: isExpanded ? "none" : "1px solid #D8D8D8",
       cursor: isExpandable ? "pointer" : "default",
     }}>
       <span style={{ fontSize: 10, width: 10, flexShrink: 0, color: "#807D7B", textAlign: "center", transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.25s", display: "inline-block", lineHeight: 1 }}>
@@ -222,12 +222,12 @@ function GolferRowHeader() {
 
 const bioCache = {};
 
-function Scorecard({ holeScores, coursePar, golferName, espnId, country }) {
+function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible, dropped }) {
   const hasHoleData = holeScores && holeScores.length > 0;
   const [bio, setBio] = useState(bioCache[espnId] || null);
 
   useEffect(() => {
-    if (!espnId || bioCache[espnId]) return;
+    if (!visible || !espnId || bioCache[espnId]) return;
     fetch(`https://site.web.api.espn.com/apis/common/v3/sports/golf/pga/athletes/${espnId}`)
       .then(r => r.json())
       .then(d => {
@@ -251,7 +251,7 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country }) {
         setBio(info);
       })
       .catch(() => {});
-  }, [espnId]);
+  }, [espnId, visible]);
 
   const cellW = 27;
   const labelW = 42;
@@ -306,7 +306,7 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country }) {
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
 
   return (
-    <div style={{ background: "#fff", borderBottom: "1px solid rgb(42, 170, 106)", padding: "0 0 6px" }}>
+    <div style={{ background: dropped ? "rgb(243, 240, 236)" : "#fff", borderBottom: "1px solid rgb(42, 170, 106)", padding: "0 0 6px" }}>
       {espnId && bio && (
         <div style={{ display: "flex", gap: 12, padding: "10px 12px" }}>
           {bio.headshot && (
@@ -450,14 +450,22 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
             {scoringGolfers.map(g => (
               <div key={g.name}>
                 <GolferRow golfer={g} isCut={false} isPenalty={false} isDropped={false} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && (g.holeScores?.length > 0 || g.espnId)} isExpanded={expandedGolfers?.has(g.name)} />
-                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} golferName={g.name} espnId={g.espnId} country={g.country} />}
+                <div style={{ display: "grid", gridTemplateRows: expandedGolfers?.has(g.name) ? "1fr" : "0fr", transition: "grid-template-rows 0.25s ease" }}>
+                  <div style={{ overflow: "hidden" }}>
+                    <Scorecard holeScores={g.holeScores} coursePar={coursePar} golferName={g.name} espnId={g.espnId} country={g.country} visible={expandedGolfers?.has(g.name)} />
+                  </div>
+                </div>
               </div>
             ))}
             {Array.from({ length: penaltySlots }).map((_, i) => <GolferRow key={`penalty-${i}`} golfer={{ relative: worstMadeCut }} isCut={false} isPenalty={true} isDropped={false} />)}
             {droppedGolfers.map(g => (
               <div key={g.name}>
                 <GolferRow golfer={g} isCut={cutHappened && g.missedCut} isWithdrawn={g.withdrawn} isPenalty={false} isDropped={true} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && (g.holeScores?.length > 0 || g.espnId)} isExpanded={expandedGolfers?.has(g.name)} />
-                {expandedGolfers?.has(g.name) && <Scorecard holeScores={g.holeScores} coursePar={coursePar} golferName={g.name} espnId={g.espnId} country={g.country} />}
+                <div style={{ display: "grid", gridTemplateRows: expandedGolfers?.has(g.name) ? "1fr" : "0fr", transition: "grid-template-rows 0.25s ease" }}>
+                  <div style={{ overflow: "hidden" }}>
+                    <Scorecard holeScores={g.holeScores} coursePar={coursePar} golferName={g.name} espnId={g.espnId} country={g.country} visible={expandedGolfers?.has(g.name)} dropped />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
