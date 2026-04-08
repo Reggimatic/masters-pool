@@ -38,7 +38,7 @@ function RulesContent() {
         </ul>
 
         <div style={{ marginTop: 32, textAlign: "center" }}>
-          <a href={back} style={{ color: "#5BD397", fontSize: 13, textDecoration: "underline" }}>Back to Leaderboard</a>
+          <a href={back} style={{ color: "#5BD397", fontSize: 13, textDecoration: "underline" }}>Back to Leader Board</a>
         </div>
       </div>
     </div>

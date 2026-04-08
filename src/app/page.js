@@ -81,7 +81,7 @@ function PickerPage({ onSelect }) {
                   key={t.id}
                   onClick={() => setSelectedTournament(t.id)}
                   style={{
-                    background: selectedTournament === t.id ? "rgb(34, 86, 60)" : "rgb(14, 39, 26)",
+                    background: selectedTournament === t.id ? "rgb(55, 128, 91)" : "rgb(14, 39, 26)",
                     border: selectedTournament === t.id ? "1px solid rgb(91, 211, 151)" : "none",
                     borderRadius: 10, padding: "14px 18px", cursor: "pointer",
                     color: selectedTournament === t.id ? "#fff" : "rgb(156, 163, 175)",
@@ -106,7 +106,7 @@ function PickerPage({ onSelect }) {
                   key={g.id}
                   onClick={() => setSelectedGroup(g.id)}
                   style={{
-                    background: selectedGroup === g.id ? "rgb(34, 86, 60)" : "rgb(14, 39, 26)",
+                    background: selectedGroup === g.id ? "rgb(55, 128, 91)" : "rgb(14, 39, 26)",
                     border: selectedGroup === g.id ? "1px solid rgb(91, 211, 151)" : "none",
                     borderRadius: 10, padding: "14px 18px", cursor: "pointer",
                     color: selectedGroup === g.id ? "#fff" : "rgb(156, 163, 175)",
@@ -134,7 +134,7 @@ function PickerPage({ onSelect }) {
               transition: "all 0.2s",
             }}
           >
-            View Leaderboard →
+            View Leader Board →
           </button>
         </div>
       )}
