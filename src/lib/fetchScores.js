@@ -383,6 +383,31 @@ export async function computeScores(golferNames, tournamentName) {
     golfers[name] = { relative, today, thru, position, positionChange, missedCut, withdrawn, nineScores, holeScores };
   }
 
+  // Build the full field list for the drawer view — every competitor in the event,
+  // sorted by current position. Owner overlay is applied client-side.
+  const field = sortedCompetitors.map((c) => {
+    const name = c.athlete?.displayName || c.athlete?.shortName || "";
+    const norm = normalize(name);
+    const country = espnFlagToCode(c.athlete?.flag?.href);
+    const position = positionMap.get(norm) || c.status?.position?.displayName || null;
+    const relative = getRegulationScore(c);
+    const ls = c.linescores || [];
+    const currentRoundScore = ls.find((l) => l.period === round);
+    let today = null;
+    if (currentRoundScore?.displayValue != null && currentRoundScore.displayValue !== "") {
+      today = parseScore(String(currentRoundScore.displayValue));
+    }
+    let thru = null;
+    if (currentRoundScore) {
+      const holesPlayed = currentRoundScore.linescores?.length || 0;
+      if (holesPlayed === 18) thru = "F";
+      else if (holesPlayed > 0) thru = String(holesPlayed);
+    }
+    const withdrawn = withdrawnNames.has(norm);
+    const missedCut = (cutHappened && !didMakeCut(c)) || withdrawn;
+    return { name, country, position, relative, today, thru, missedCut, withdrawn };
+  });
+
   return {
     round,
     statusDetail,
@@ -396,6 +421,7 @@ export async function computeScores(golferNames, tournamentName) {
     worstMadeCutGolfers,
     allMadeCutNineScores,
     golfers,
+    field,
     tournamentName: event.name || tournamentName,
   };
 }

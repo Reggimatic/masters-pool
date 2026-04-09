@@ -1425,6 +1425,124 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
   );
 }
 
+// ─── Field Drawer ────────────────────────────────────────────────────────────
+
+function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName }) {
+  // Format a to-par score (null/undefined → blank, 0 → "E", pos → "+n")
+  const fmt = (v) => {
+    if (v == null) return "";
+    if (v === 0) return "E";
+    if (v > 0) return `+${v}`;
+    return `${v}`;
+  };
+
+  // Disable page scroll while drawer is open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+          opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
+          transition: "opacity 0.25s ease", zIndex: 100,
+        }}
+      />
+      {/* Drawer */}
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0,
+        width: "min(420px, 92vw)",
+        background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)",
+        color: "#e8dfc4",
+        transform: open ? "translateX(0)" : "translateX(100%)",
+        transition: "transform 0.28s ease",
+        zIndex: 101,
+        display: "flex", flexDirection: "column",
+        boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "14px 16px", background: "#143625", borderBottom: "1px solid #337B57", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 10, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 2, textTransform: "uppercase" }}>{tournamentName}</div>
+            <div style={{ fontSize: 18, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#ffffff", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 300 }}>Full Field</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, width: 34, height: 34, color: "#e8dfc4", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Column header row */}
+        <div style={{ display: "grid", gridTemplateColumns: "36px 1fr 44px 44px 44px", alignItems: "center", gap: 6, padding: "8px 12px", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#5BD397", borderBottom: "1px solid rgba(91,211,151,0.3)", background: "rgba(0,0,0,0.15)" }}>
+          <div style={{ textAlign: "right" }}>Pos</div>
+          <div>Player</div>
+          <div style={{ textAlign: "right" }}>Today</div>
+          <div style={{ textAlign: "right" }}>Thru</div>
+          <div style={{ textAlign: "right" }}>Score</div>
+        </div>
+
+        {/* Scrollable list */}
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+          {field.map((p, i) => {
+            const owners = golferToOwners[p.name] || [];
+            const drafted = owners.length > 0;
+            const showScore = p.missedCut ? "CUT" : (p.withdrawn ? "WD" : fmt(p.relative));
+            return (
+              <div
+                key={`${p.name}-${i}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "36px 1fr 44px 44px 44px",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 12px",
+                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  background: drafted ? "rgba(252, 227, 0, 0.08)" : "transparent",
+                  fontSize: 13,
+                  color: p.missedCut || p.withdrawn ? "#888" : "#ffffff",
+                }}
+              >
+                <div style={{ textAlign: "right", color: "#cfcece", fontSize: 12 }}>{p.position || ""}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>{countryFlag(p.country)}</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {p.name}
+                    {drafted && (
+                      <span style={{ color: "#FCE300", fontSize: 11, marginLeft: 4 }}>
+                        ({owners.join(", ")})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 12, color: "#cfcece" }}>{fmt(p.today)}</div>
+                <div style={{ textAlign: "right", fontSize: 12, color: "#cfcece" }}>{p.thru || ""}</div>
+                <div style={{ textAlign: "right", fontWeight: 600 }}>{showScore}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
 function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left" }) {
@@ -1483,6 +1601,8 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
   const [coursePar, setCoursePar] = useState(null);
   const [expandedGolfers, setExpandedGolfers] = useState(new Set());
   const [espnIds, setEspnIds] = useState({});
+  const [field, setField] = useState([]);
+  const [showFieldDrawer, setShowFieldDrawer] = useState(false);
 
   const expandedTeams = useRef(new Set());
   const skipReorderAnim = useRef(false);
@@ -1580,6 +1700,8 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
       }
       setWorstMadeCutGolfers(data.worstMadeCutGolfers || []);
       if (data.coursePar) setCoursePar(data.coursePar);
+      const newField = data.field || [];
+      setField(prev => JSON.stringify(prev) === JSON.stringify(newField) ? prev : newField);
       setLastUpdated(new Date());
     } catch (e) { console.error("fetchScores error:", e.message); setError(`Could not fetch live scores: ${e.message}`); }
     if (!isBackground) setLoading(false);
@@ -1614,6 +1736,16 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
     return { ...team, golfers: withScores, total };
   }).sort((a, b) => a.total - b.total);
 
+  // Build lookup from golfer name → array of pool owners who drafted them
+  const golferToOwners = {};
+  picks.forEach(team => {
+    team.golfers.forEach(g => {
+      const name = g.name || g;
+      if (!golferToOwners[name]) golferToOwners[name] = [];
+      golferToOwners[name].push(team.name);
+    });
+  });
+
   const cardRefs = useRef({});
   const prevPositions = useRef({});
   useEffect(() => {
@@ -1635,11 +1767,27 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e8dfc4" }}>
-      <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57" }}>
+      <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57", position: "relative" }}>
         <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
           <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color="#FCE300" align="center" />
         </div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
+        {field.length > 0 && !isArchived && (
+          <button
+            onClick={() => setShowFieldDrawer(true)}
+            title="View full field"
+            style={{ position: "absolute", right: 7, top: "59%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "#e8dfc4", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6" />
+              <line x1="8" y1="12" x2="21" y2="12" />
+              <line x1="8" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="6" x2="3.01" y2="6" />
+              <line x1="3" y1="12" x2="3.01" y2="12" />
+              <line x1="3" y1="18" x2="3.01" y2="18" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
@@ -1718,6 +1866,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
       {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} allGroups={allGroups} onSave={savePicks} onClose={() => { setShowAdmin(false); loadPicks(); }} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
+      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} />
     </div>
   );
 }
