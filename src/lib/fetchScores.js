@@ -55,24 +55,48 @@ export async function computeScores(golferNames, tournamentName) {
   // Cap round at 4 — playoff holes should not affect pool scoring
   if (round > 4) round = 4;
 
-  // Compute course par from the first competitor with a complete round
+  // Try to fetch per-hole par from ESPN's core API (authoritative course data).
   let coursePar = null;
-  for (const c of competitors) {
-    const ls = c.linescores || [];
-    for (const roundLs of ls) {
-      const holes = roundLs.linescores || [];
-      if (holes.length === 18) {
-        coursePar = [];
-        // Sort by hole number (period)
-        const sorted = [...holes].sort((a, b) => a.period - b.period);
-        for (const h of sorted) {
-          const rel = parseRelativeHole(h.scoreType?.displayValue);
-          coursePar.push(h.value - rel);
-        }
-        break;
+  try {
+    const coreRes = await fetch(
+      `https://sports.core.api.espn.com/v2/sports/golf/leagues/pga/events/${event.id}?lang=en`,
+      { next: { revalidate: 3600 } }
+    );
+    if (coreRes.ok) {
+      const coreData = await coreRes.json();
+      const holes = coreData?.courses?.[0]?.holes;
+      if (Array.isArray(holes) && holes.length === 18) {
+        const sorted = [...holes].sort((a, b) => a.number - b.number);
+        coursePar = sorted.map((h) => h.shotsToPar);
       }
     }
-    if (coursePar) break;
+  } catch {
+    // Fall through to linescore-based derivation
+  }
+
+  // Fallback: merge partial hole data across competitors.
+  if (!coursePar) {
+    const parByHole = {};
+    for (const c of competitors) {
+      const ls = c.linescores || [];
+      for (const roundLs of ls) {
+        const holes = roundLs.linescores || [];
+        for (const h of holes) {
+          if (parByHole[h.period] != null) continue;
+          const rel = parseRelativeHole(h.scoreType?.displayValue);
+          if (rel == null || h.value == null) continue;
+          parByHole[h.period] = h.value - rel;
+        }
+      }
+    }
+    const partial = [];
+    let any = false;
+    for (let i = 1; i <= 18; i++) {
+      const p = parByHole[i] ?? null;
+      partial.push(p);
+      if (p != null) any = true;
+    }
+    if (any) coursePar = partial;
   }
 
   // Build a name-lookup map: normalize names for fuzzy matching

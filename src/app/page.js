@@ -221,36 +221,53 @@ function GolferRowHeader() {
 }
 
 const bioCache = {};
+const bioPending = {};
+
+function prefetchGolferBio(espnId) {
+  if (!espnId || bioCache[espnId] || bioPending[espnId]) return bioPending[espnId] || Promise.resolve(bioCache[espnId]);
+  const promise = fetch(`https://site.web.api.espn.com/apis/common/v3/sports/golf/pga/athletes/${espnId}`)
+    .then(r => r.json())
+    .then(d => {
+      const a = d.athlete || d;
+      let dob = a.displayDOB || null;
+      if (dob) {
+        const parts = dob.split("/");
+        if (parts.length === 3) dob = `${parts[1]}/${parts[0]}/${parts[2]}`;
+      }
+      const info = {
+        headshot: a.headshot?.href || null,
+        dob,
+        age: a.age || null,
+        college: a.college?.name || null,
+        turnedPro: a.turnedPro || null,
+        flagUrl: a.flag?.href || null,
+        country: a.flag?.alt || null,
+      };
+      bioCache[espnId] = info;
+      delete bioPending[espnId];
+      // Preload the headshot image
+      if (typeof window !== "undefined") {
+        const img = new window.Image();
+        img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${espnId}.png&w=96&h=70`;
+      }
+      return info;
+    })
+    .catch(() => { delete bioPending[espnId]; });
+  bioPending[espnId] = promise;
+  return promise;
+}
 
 function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible, dropped }) {
   const hasHoleData = holeScores && holeScores.length > 0;
   const [bio, setBio] = useState(bioCache[espnId] || null);
 
   useEffect(() => {
-    if (!visible || !espnId || bioCache[espnId]) return;
-    fetch(`https://site.web.api.espn.com/apis/common/v3/sports/golf/pga/athletes/${espnId}`)
-      .then(r => r.json())
-      .then(d => {
-        const a = d.athlete || d;
-        // Reformat DOB from ESPN's d/m/yyyy to m/d/yyyy
-        let dob = a.displayDOB || null;
-        if (dob) {
-          const parts = dob.split("/");
-          if (parts.length === 3) dob = `${parts[1]}/${parts[0]}/${parts[2]}`;
-        }
-        const info = {
-          headshot: a.headshot?.href || null,
-          dob,
-          age: a.age || null,
-          college: a.college?.name || null,
-          turnedPro: a.turnedPro || null,
-          flagUrl: a.flag?.href || null,
-          country: a.flag?.alt || null,
-        };
-        bioCache[espnId] = info;
-        setBio(info);
-      })
-      .catch(() => {});
+    if (!visible || !espnId) return;
+    if (bioCache[espnId]) {
+      setBio(bioCache[espnId]);
+      return;
+    }
+    prefetchGolferBio(espnId).then(info => { if (info) setBio(info); });
   }, [espnId, visible]);
 
   const cellW = 27;
@@ -288,17 +305,34 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
     borderRight: borderR,
   };
 
-  // Derive par from coursePar or from holeScores
-  const par = hasHoleData ? (coursePar || (() => {
-    for (const r of holeScores) {
-      if (r.holes.length === 18) return r.holes.map(h => h.par);
+  // Derive par from coursePar (may be partial — nulls for unplayed holes) or merge from holeScores
+  let par = null;
+  if (hasHoleData) {
+    if (coursePar && coursePar.length === 18) {
+      par = coursePar;
+    } else {
+      const byHole = {};
+      for (const r of holeScores) {
+        for (const h of r.holes) {
+          if (byHole[h.hole] == null && h.par != null) byHole[h.hole] = h.par;
+        }
+      }
+      const arr = [];
+      let any = false;
+      for (let i = 1; i <= 18; i++) {
+        const p = byHole[i] ?? null;
+        arr.push(p);
+        if (p != null) any = true;
+      }
+      if (any) par = arr;
     }
-    return null;
-  })()) : null;
+  }
 
-  const parOut = par ? par.slice(0, 9).reduce((s, v) => s + v, 0) : null;
-  const parIn = par ? par.slice(9, 18).reduce((s, v) => s + v, 0) : null;
-  const parTotal = par ? parOut + parIn : null;
+  const sumKnown = (slice) => slice.reduce((s, v) => s + (v ?? 0), 0);
+  const allKnown = (slice) => slice.every(v => v != null);
+  const parOut = par && allKnown(par.slice(0, 9)) ? sumKnown(par.slice(0, 9)) : null;
+  const parIn = par && allKnown(par.slice(9, 18)) ? sumKnown(par.slice(9, 18)) : null;
+  const parTotal = parOut != null && parIn != null ? parOut + parIn : null;
 
   const subtotalHeaderCell = { ...headerCell, width: cellW + 4, minWidth: cellW + 4, borderLeft: borderR };
   const subtotalDataCell = { ...subtotalCell(), borderLeft: borderR };
@@ -313,7 +347,7 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
             <img
               src={`https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${espnId}.png&w=96&h=70`}
               alt={golferName}
-              style={{ width: 96, height: 70, objectFit: "cover", borderRadius: 4, background: "#eee", flexShrink: 0 }}
+              style={{ width: 96, height: 70, objectFit: "cover", borderRadius: 4, background: "#eee", border: "1px solid #cfcece", flexShrink: 0 }}
               onError={(e) => { e.target.style.display = "none"; }}
             />
           )}
@@ -334,8 +368,8 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
         <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", fontSize: 11 }}>
           <table style={{ borderCollapse: "collapse", whiteSpace: "nowrap", minWidth: "100%" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #d8d8d8" }}>
-                <td style={labelStyle}>HOLE</td>
+              <tr style={{ borderBottom: "1px solid #d8d8d8", background: "rgb(250, 250, 250)" }}>
+                <td style={{ ...labelStyle, background: "rgb(250, 250, 250)" }}>HOLE</td>
                 {holes.slice(0, 9).map(h => <td key={h} style={headerCell}>{h}</td>)}
                 <td style={{ ...subtotalHeaderCell, borderRight: borderR }}>OUT</td>
                 {holes.slice(9, 18).map(h => <td key={h} style={headerCell}>{h}</td>)}
@@ -343,13 +377,13 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
                 <td style={subtotalHeaderCell}>TOT</td>
               </tr>
               {par && (
-                <tr style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400 }}>PAR</td>
-                  {par.slice(0, 9).map((p, i) => <td key={i} style={cellStyle(0)}>{p}</td>)}
-                  <td style={{ ...subtotalDataCell, borderRight: borderR }}>{parOut}</td>
-                  {par.slice(9, 18).map((p, i) => <td key={i + 9} style={cellStyle(0)}>{p}</td>)}
-                  <td style={subtotalDataCell}>{parIn}</td>
-                  <td style={subtotalDataCell}>{parTotal}</td>
+                <tr style={{ borderBottom: "1px solid #eee", background: "rgb(250, 250, 250)" }}>
+                  <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "rgb(250, 250, 250)" }}>PAR</td>
+                  {par.slice(0, 9).map((p, i) => <td key={i} style={cellStyle(0)}>{p ?? ""}</td>)}
+                  <td style={{ ...subtotalDataCell, borderRight: borderR }}>{parOut ?? ""}</td>
+                  {par.slice(9, 18).map((p, i) => <td key={i + 9} style={cellStyle(0)}>{p ?? ""}</td>)}
+                  <td style={subtotalDataCell}>{parIn ?? ""}</td>
+                  <td style={subtotalDataCell}>{parTotal ?? ""}</td>
                 </tr>
               )}
             </thead>
@@ -357,8 +391,8 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
               {holeScores.map((round) => {
                 const holeMap = new Map(round.holes.map(h => [h.hole, h]));
                 return (
-                  <tr key={round.round} style={{ borderTop: "1px solid #eee", background: "rgb(250, 250, 250)" }}>
-                    <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "rgb(250, 250, 250)" }}>R{round.round}</td>
+                  <tr key={round.round} style={{ borderTop: "1px solid #eee", background: "#fff" }}>
+                    <td style={{ ...labelStyle, color: "rgb(99, 96, 94)", fontWeight: 400, background: "#fff" }}>R{round.round}</td>
                     {holes.slice(0, 9).map(h => {
                       const d = holeMap.get(h);
                       return <td key={h} style={cellStyle(d?.toPar ?? 0)}>{d?.strokes ?? ""}</td>;
@@ -382,6 +416,13 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
 }
 
 function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor, expandedGolfers, onGolferToggle, coursePar, isArchived }) {
+  // Prefetch golfer bios + headshots when the team card expands,
+  // so the per-golfer profile pops in smoothly.
+  useEffect(() => {
+    if (!expanded) return;
+    team.golfers.forEach(g => { if (g.espnId) prefetchGolferBio(g.espnId); });
+  }, [expanded, team.golfers]);
+
   const madeCut = team.golfers.filter(g => !g.missedCut);
   const missedCut = team.golfers.filter(g => g.missedCut);
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
@@ -1190,7 +1231,13 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
   }));
   const maxCheckpoints = Math.max(...allNineScores.map(s => s.length), 0);
 
-  if (maxCheckpoints < 1) return null;
+  // Show the chart as soon as any golfer in the pool has played at least one hole.
+  const anyHolesPlayed = teams.some(t => t.golfers.some(g => {
+    const name = g.name || g;
+    const hs = liveScores[name]?.holeScores || [];
+    return hs.some(r => r.holes && r.holes.length > 0);
+  }));
+  if (!anyHolesPlayed) return null;
 
   // A checkpoint is "locked in" only when ALL golfers have completed it.
   // The LIVE point always reflects the current team card totals.
@@ -1259,7 +1306,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
   // Uses team.total which matches exactly what the team cards display.
   const isComplete = plottableCheckpoints >= 8;
   let liveX = null;
-  if (!isComplete && maxCheckpoints >= 1) {
+  if (!isComplete) {
     const lastX = plottableCheckpoints > 0 ? CHECKPOINT_X[plottableCheckpoints - 1] : 0;
     const nextX = CHECKPOINT_X[plottableCheckpoints] ?? lastX + 1;
     liveX = (lastX + nextX) / 2;
@@ -1272,6 +1319,22 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
   chartData.sort((a, b) => a.x - b.x);
 
   const teamNames = teams.map(t => t.name);
+
+  // Precompute which (x, value) coordinates have multiple teams stacked on them.
+  // These get rendered as white dots so the viewer can see that a single visible
+  // line represents multiple overlapping teams at that checkpoint.
+  const overlapKeys = new Set();
+  for (const point of chartData) {
+    const counts = {};
+    for (const name of teamNames) {
+      const v = point[name];
+      if (v == null) continue;
+      counts[v] = (counts[v] || 0) + 1;
+    }
+    for (const [v, count] of Object.entries(counts)) {
+      if (count > 1) overlapKeys.add(`${point.x}:${v}`);
+    }
+  }
 
   const formatScore = (val) => {
     if (val === 0) return "E";
@@ -1323,21 +1386,39 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
             }}
           />
           {liveX !== null && <ReferenceLine x={liveX} stroke="rgb(252, 227, 0)" strokeDasharray="4 4" strokeOpacity={0.4} label={{ value: "LIVE", position: "top", fill: "rgb(252, 227, 0)", fontSize: 11, fontWeight: 700 }} />}
-          {teamNames.map((name, i) => (
-            <Line
-              key={name}
-
-              type="monotone"
-              dataKey={name}
-              stroke={TEAM_COLORS[i % TEAM_COLORS.length]}
-              strokeWidth={2.5}
-              dot={{ r: 4, fill: TEAM_COLORS[i % TEAM_COLORS.length] }}
-              activeDot={{ r: 6 }}
-              isAnimationActive={true}
-              animationDuration={1200}
-              animationEasing="ease-in-out"
-            />
-          ))}
+          {teamNames.map((name, i) => {
+            const color = TEAM_COLORS[i % TEAM_COLORS.length];
+            const renderDot = (props) => {
+              const { cx, cy, payload, value } = props;
+              if (cx == null || cy == null || value == null) return null;
+              const isOverlap = overlapKeys.has(`${payload.x}:${value}`);
+              return (
+                <circle
+                  key={`${name}-${payload.x}`}
+                  cx={cx}
+                  cy={cy}
+                  r={4}
+                  fill={isOverlap ? "#ffffff" : color}
+                  stroke={isOverlap ? color : "none"}
+                  strokeWidth={isOverlap ? 1.5 : 0}
+                />
+              );
+            };
+            return (
+              <Line
+                key={name}
+                type="monotone"
+                dataKey={name}
+                stroke={color}
+                strokeWidth={2.5}
+                dot={renderDot}
+                activeDot={{ r: 6 }}
+                isAnimationActive={true}
+                animationDuration={1200}
+                animationEasing="ease-in-out"
+              />
+            );
+          })}
         </LineChart>
       </ResponsiveContainer>
     </div>
