@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { GrRefresh } from "react-icons/gr";
@@ -1427,7 +1427,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
 
 // ─── Field Drawer ────────────────────────────────────────────────────────────
 
-function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName }) {
+function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cutHappened }) {
   // Format a to-par score (null/undefined → blank, 0 → "E", pos → "+n")
   const fmt = (v) => {
     if (v == null) return "";
@@ -1435,6 +1435,26 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName }) {
     if (v > 0) return `+${v}`;
     return `${v}`;
   };
+
+  // Projected cut line — Masters: top 50 and ties.
+  // Only meaningful before the actual cut and once scoring data exists.
+  const CUT_LINE_RANK = 50;
+  const projectedCutScore = (() => {
+    if (cutHappened) return null;
+    const active = field.filter(p => !p.withdrawn && !p.missedCut && p.relative != null);
+    if (active.length < CUT_LINE_RANK) return null;
+    return active[CUT_LINE_RANK - 1]?.relative ?? null;
+  })();
+  // Index (in the full field list) of the last player who makes the projected cut
+  const projectedCutLastIdx = projectedCutScore == null ? -1 : (() => {
+    let lastIdx = -1;
+    for (let i = 0; i < field.length; i++) {
+      const p = field[i];
+      if (p.withdrawn || p.missedCut || p.relative == null) continue;
+      if (p.relative <= projectedCutScore) lastIdx = i;
+    }
+    return lastIdx;
+  })();
 
   // Disable page scroll while drawer is open
   useEffect(() => {
@@ -1505,36 +1525,54 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName }) {
             const drafted = owners.length > 0;
             const showScore = p.missedCut ? "CUT" : (p.withdrawn ? "WD" : fmt(p.relative));
             return (
-              <div
-                key={`${p.name}-${i}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "36px 1fr 44px 44px 44px",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 12px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  background: drafted ? "rgba(252, 227, 0, 0.08)" : "transparent",
-                  fontSize: 13,
-                  color: p.missedCut || p.withdrawn ? "#888" : "#ffffff",
-                }}
-              >
-                <div style={{ textAlign: "right", color: "#cfcece", fontSize: 12 }}>{p.position || ""}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>{countryFlag(p.country)}</span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {p.name}
-                    {drafted && (
-                      <span style={{ color: "#FCE300", fontSize: 11, marginLeft: 4 }}>
-                        ({owners.join(", ")})
-                      </span>
-                    )}
-                  </span>
+              <Fragment key={`${p.name}-${i}`}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "36px 1fr 44px 44px 44px",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 12px",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    background: drafted ? "rgba(252, 227, 0, 0.08)" : "transparent",
+                    fontSize: 13,
+                    color: p.missedCut || p.withdrawn ? "#888" : "#ffffff",
+                  }}
+                >
+                  <div style={{ textAlign: "right", color: "#cfcece", fontSize: 12 }}>{p.position || ""}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>{countryFlag(p.country)}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.name}
+                      {drafted && (
+                        <span style={{ color: "#FCE300", fontSize: 11, marginLeft: 4 }}>
+                          ({owners.join(", ")})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: "right", fontSize: 12, color: "#cfcece" }}>{fmt(p.today)}</div>
+                  <div style={{ textAlign: "right", fontSize: 12, color: "#cfcece" }}>{p.thru || ""}</div>
+                  <div style={{ textAlign: "right", fontWeight: 600 }}>{showScore}</div>
                 </div>
-                <div style={{ textAlign: "right", fontSize: 12, color: "#cfcece" }}>{fmt(p.today)}</div>
-                <div style={{ textAlign: "right", fontSize: 12, color: "#cfcece" }}>{p.thru || ""}</div>
-                <div style={{ textAlign: "right", fontWeight: 600 }}>{showScore}</div>
-              </div>
+                {i === projectedCutLastIdx && (
+                  <div style={{
+                    padding: "6px 12px",
+                    background: "rgb(15, 38, 26)",
+                    borderTop: "1px dashed rgb(91, 211, 151)",
+                    borderBottom: "1px dashed rgb(91, 211, 151)",
+                    textAlign: "center",
+                    fontFamily: "var(--font-open-sans), 'Open Sans', sans-serif",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    letterSpacing: 1.2,
+                    textTransform: "uppercase",
+                    color: "rgb(91, 211, 151)",
+                  }}>
+                    Projected Cut
+                  </div>
+                )}
+              </Fragment>
             );
           })}
         </div>
@@ -1866,7 +1904,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
       {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} allGroups={allGroups} onSave={savePicks} onClose={() => { setShowAdmin(false); loadPicks(); }} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
-      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} />
+      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} cutHappened={cutHappened} />
     </div>
   );
 }
