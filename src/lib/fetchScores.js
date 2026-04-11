@@ -141,59 +141,8 @@ export async function computeScores(golferNames, tournamentName) {
     return hasAny ? total : null;
   };
 
-  // Determine positions with tie detection using regulation scores only
-  const sortedCompetitors = [...competitors].sort((a, b) => {
-    const aScore = getRegulationScore(a);
-    const bScore = getRegulationScore(b);
-    if (aScore === null && bScore === null) return 0;
-    if (aScore === null) return 1;
-    if (bScore === null) return -1;
-    return aScore - bScore;
-  });
-
-  const positionMap = new Map();
-  sortedCompetitors.forEach((c, idx) => {
-    const score = getRegulationScore(c);
-    let pos = idx + 1;
-    if (score !== null) {
-      const firstWithScore = sortedCompetitors.findIndex(
-        (x) => getRegulationScore(x) === score
-      );
-      pos = firstWithScore + 1;
-      const countWithScore = sortedCompetitors.filter(
-        (x) => getRegulationScore(x) === score
-      ).length;
-      const name = c.athlete?.displayName || c.athlete?.shortName || "";
-      positionMap.set(normalize(name), countWithScore > 1 ? `T${pos}` : `${pos}`);
-    }
-  });
-
-  // Fetch manual withdrawals from Supabase
-  const { data: withdrawalData } = await supabase
-    .from("withdrawals")
-    .select("golfer_name")
-    .eq("tournament", tournamentName);
-  const withdrawnNames = new Set((withdrawalData || []).map((w) => normalize(w.golfer_name)));
-
-  // Determine cut status
-  let cutHappened = false;
-  let worstMadeCutScore = null;
-  let worstMadeCutName = null;
-
-  // Check if any competitor has explicit status indicating they missed the cut
-  const hasCutIndicators = competitors.some((c) => {
-    const status = c.status?.type?.name?.toLowerCase() || "";
-    return status === "cut" || status === "missed cut";
-  });
-
-  // ESPN does not tag individual competitors as cut on the scoreboard
-  // endpoint, and eagerly adds an empty round-3 linescore entry to every
-  // player as soon as round 3 is scheduled — which breaks our old
-  // "linescores.length > 2 → made cut" heuristic. Compute the made-cut set
-  // ourselves using the Masters top-50-and-ties rule whenever the cut has
-  // been made. The cut is based on R1+R2 totals only — using live regulation
-  // scores would let mid-R3 play slide players across the cut line.
-  // TODO: make the cut rule per-tournament (see project_cut_rules_per_tournament.md).
+  // R1+R2 total — used for cut determination and for sorting missed-cut
+  // players (whose "final" regulation score is locked after round 2).
   const getR1R2Score = (c) => {
     const ls = c.linescores || [];
     let total = 0;
@@ -211,6 +160,27 @@ export async function computeScores(golferNames, tournamentName) {
     return hasAny ? total : null;
   };
 
+  // Fetch manual withdrawals from Supabase
+  const { data: withdrawalData } = await supabase
+    .from("withdrawals")
+    .select("golfer_name")
+    .eq("tournament", tournamentName);
+  const withdrawnNames = new Set((withdrawalData || []).map((w) => normalize(w.golfer_name)));
+
+  // Check if any competitor has explicit status indicating they missed the cut
+  const hasCutIndicators = competitors.some((c) => {
+    const status = c.status?.type?.name?.toLowerCase() || "";
+    return status === "cut" || status === "missed cut";
+  });
+
+  // ESPN does not tag individual competitors as cut on the scoreboard
+  // endpoint, and eagerly adds an empty round-3 linescore entry to every
+  // player as soon as round 3 is scheduled — which breaks our old
+  // "linescores.length > 2 → made cut" heuristic. Compute the made-cut set
+  // ourselves using the Masters top-50-and-ties rule whenever the cut has
+  // been made. The cut is based on R1+R2 totals only — using live regulation
+  // scores would let mid-R3 play slide players across the cut line.
+  // TODO: make the cut rule per-tournament (see project_cut_rules_per_tournament.md).
   let computedMadeCutIds = null;
   if (!hasCutIndicators && (round2Completed || round >= 3)) {
     const CUT_RANK = 50;
@@ -247,9 +217,53 @@ export async function computeScores(golferNames, tournamentName) {
     return true;
   };
 
+  const cutHappened = hasCutIndicators || round >= 3 || round2Completed;
+
+  // Sort competitors for display. When the cut has happened, missed-cut
+  // players are tiered below made-cut players regardless of live R3+ scores
+  // — otherwise a made-cut player's mid-round progress could visually push
+  // them below a missed-cut player whose final R1+R2 total is lower.
+  const isMissedOut = (c) => cutHappened && !didMakeCut(c);
+  const sortedCompetitors = [...competitors].sort((a, b) => {
+    const aMissed = isMissedOut(a);
+    const bMissed = isMissedOut(b);
+    if (aMissed !== bMissed) return aMissed ? 1 : -1;
+    // Missed-cut players compare by R1+R2 (their locked final regulation
+    // score); made-cut / pre-cut players compare by live regulation score.
+    const aScore = aMissed ? getR1R2Score(a) : getRegulationScore(a);
+    const bScore = bMissed ? getR1R2Score(b) : getRegulationScore(b);
+    if (aScore === null && bScore === null) return 0;
+    if (aScore === null) return 1;
+    if (bScore === null) return -1;
+    return aScore - bScore;
+  });
+
+  // Build position map. Missed-cut players don't get positions (they show
+  // "CUT" in the score column) — and including them would corrupt tie
+  // detection for made-cut players who happen to share a live score with
+  // a missed-cut player's R1+R2 total.
+  const positionMap = new Map();
+  const rankedForPositions = cutHappened
+    ? sortedCompetitors.filter((c) => didMakeCut(c))
+    : sortedCompetitors;
+  rankedForPositions.forEach((c) => {
+    const score = getRegulationScore(c);
+    if (score === null) return;
+    const firstWithScore = rankedForPositions.findIndex(
+      (x) => getRegulationScore(x) === score
+    );
+    const countWithScore = rankedForPositions.filter(
+      (x) => getRegulationScore(x) === score
+    ).length;
+    const pos = firstWithScore + 1;
+    const name = c.athlete?.displayName || c.athlete?.shortName || "";
+    positionMap.set(normalize(name), countWithScore > 1 ? `T${pos}` : `${pos}`);
+  });
+
+  let worstMadeCutScore = null;
+  let worstMadeCutName = null;
   let worstMadeCutGolfers = [];
-  if (hasCutIndicators || round >= 3 || round2Completed) {
-    cutHappened = true;
+  if (cutHappened) {
     const madeCutCompetitors = competitors.filter((c) => didMakeCut(c));
     const madeCutScores = madeCutCompetitors
       .map((c) => getRegulationScore(c))
