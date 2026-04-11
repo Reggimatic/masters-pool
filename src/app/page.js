@@ -812,6 +812,12 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
     setTournaments(t => t.map(x => x.id === id ? { ...x, display_name: newName.trim() } : x));
   };
 
+  const updateTournamentLogo = async (id, newUrl) => {
+    const value = newUrl.trim() || null;
+    await supabase.from("tournaments").update({ logo_url: value }).eq("id", id);
+    setTournaments(t => t.map(x => x.id === id ? { ...x, logo_url: value } : x));
+  };
+
   const renameGroup = async (id, newName) => {
     if (!newName.trim()) return;
     await supabase.from("groups").update({ display_name: newName.trim() }).eq("id", id);
@@ -1011,12 +1017,28 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
             <div style={{ background: "rgb(26, 66, 46)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
               <h3 style={{ color: "rgb(252, 227, 0)", fontSize: 16, margin: "0 0 12px", fontWeight: 700, textTransform: "uppercase" }}>Tournaments</h3>
               {tournaments.map(t => (
-                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <EditableName value={t.display_name} onSave={(name) => renameTournament(t.id, name)} style={{ color: "rgb(233, 255, 194)", fontSize: 14 }} />
-                    <div style={{ color: "rgb(91, 211, 151)", fontSize: 11, fontFamily: "monospace" }}>{t.id}</div>
+                <div key={t.id} style={{ padding: "8px 0", borderBottom: "1px solid rgb(51, 123, 87)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <EditableName value={t.display_name} onSave={(name) => renameTournament(t.id, name)} style={{ color: "rgb(233, 255, 194)", fontSize: 14 }} />
+                      <div style={{ color: "rgb(91, 211, 151)", fontSize: 11, fontFamily: "monospace" }}>{t.id}</div>
+                    </div>
+                    <button onClick={() => deleteTournament(t.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
                   </div>
-                  <button onClick={() => deleteTournament(t.id)} style={{ ...removeBtnStyle, padding: "3px 8px", fontSize: 11 }}>Delete</button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                    {t.logo_url
+                      ? <img src={t.logo_url} alt="" style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0, background: "rgba(255,255,255,0.06)", borderRadius: 3 }} />
+                      : <div style={{ width: 22, height: 22, flexShrink: 0, border: "1px dashed rgba(233,255,194,0.25)", borderRadius: 3 }} />}
+                    <input
+                      defaultValue={t.logo_url || ""}
+                      placeholder="Logo URL (optional)"
+                      onBlur={e => {
+                        const v = e.target.value.trim();
+                        if (v !== (t.logo_url || "")) updateTournamentLogo(t.id, v);
+                      }}
+                      style={{ ...inputStyle, flex: 1, minWidth: 0, fontSize: 11, fontFamily: "monospace" }}
+                    />
+                  </div>
                 </div>
               ))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
@@ -1427,13 +1449,21 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
 
 // ─── Field Drawer ────────────────────────────────────────────────────────────
 
-function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cutHappened }) {
+function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tournamentLogo, cutHappened }) {
   // Format a to-par score (null/undefined → blank, 0 → "E", pos → "+n")
   const fmt = (v) => {
     if (v == null) return "";
     if (v === 0) return "E";
     if (v > 0) return `+${v}`;
     return `${v}`;
+  };
+
+  // Format a name as "F. Lastname" (fall back to full name if single word)
+  const formatName = (name) => {
+    if (!name) return "";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length < 2) return name;
+    return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
   };
 
   // Projected cut line — Masters: top 50 and ties.
@@ -1455,6 +1485,16 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cut
     }
     return lastIdx;
   })();
+
+  // Once the cut has actually been made, show a banner between the last
+  // made-cut player and the first missed-cut player.
+  const actualCutLastMadeIdx = cutHappened ? (() => {
+    let lastIdx = -1;
+    for (let i = 0; i < field.length; i++) {
+      if (!field[i].missedCut) lastIdx = i;
+    }
+    return lastIdx;
+  })() : -1;
 
   // Disable page scroll while drawer is open
   useEffect(() => {
@@ -1496,10 +1536,19 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cut
         boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
       }}>
         {/* Header */}
-        <div style={{ padding: "14px 16px", background: "#143625", borderBottom: "1px solid #337B57", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 10, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 2, textTransform: "uppercase" }}>{tournamentName}</div>
-            <div style={{ fontSize: 18, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#ffffff", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 300 }}>Full Field</div>
+        <div style={{ padding: "14px 16px", background: "#0F281C", borderBottom: "1px solid #337B57", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {tournamentLogo && (
+              <img
+                src={tournamentLogo}
+                alt=""
+                style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0, marginRight: 5 }}
+              />
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 2, textTransform: "uppercase" }}>{tournamentName}</div>
+              <div style={{ fontSize: 18, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#ffffff", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 300 }}>Full Field</div>
+            </div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, width: 34, height: 34, color: "#e8dfc4", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1510,7 +1559,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cut
         </div>
 
         {/* Column header row */}
-        <div style={{ display: "grid", gridTemplateColumns: "36px 1fr 44px 44px 44px", alignItems: "center", gap: 6, padding: "8px 12px", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#5BD397", borderBottom: "1px solid rgba(91,211,151,0.3)", background: "rgba(0,0,0,0.15)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "36px 1fr 44px 44px 44px", alignItems: "center", gap: 6, padding: "8px 12px 8px 2px", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#5BD397", borderBottom: "1px solid rgba(91,211,151,0.3)", background: "rgba(0,0,0,0.15)" }}>
           <div style={{ textAlign: "right" }}>Pos</div>
           <div>Player</div>
           <div style={{ textAlign: "right" }}>Today</div>
@@ -1532,7 +1581,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cut
                     gridTemplateColumns: "36px 1fr 44px 44px 44px",
                     alignItems: "center",
                     gap: 6,
-                    padding: "8px 12px",
+                    padding: "8px 12px 8px 2px",
                     borderBottom: "1px solid rgba(255,255,255,0.06)",
                     background: drafted ? "rgba(252, 227, 0, 0.08)" : "transparent",
                     fontSize: 13,
@@ -1543,7 +1592,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cut
                   <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: 14, flexShrink: 0 }}>{countryFlag(p.country)}</span>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {p.name}
+                      {formatName(p.name)}
                       {drafted && (
                         <span style={{ color: "#FCE300", fontSize: 11, marginLeft: 4 }}>
                           ({owners.join(", ")})
@@ -1570,6 +1619,23 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, cut
                     color: "rgb(91, 211, 151)",
                   }}>
                     Projected Cut
+                  </div>
+                )}
+                {i === actualCutLastMadeIdx && (
+                  <div style={{
+                    padding: "6px 12px",
+                    background: "rgb(15, 38, 26)",
+                    borderTop: "1px dashed rgb(91, 211, 151)",
+                    borderBottom: "1px dashed rgb(91, 211, 151)",
+                    textAlign: "center",
+                    fontFamily: "var(--font-open-sans), 'Open Sans', sans-serif",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    letterSpacing: 1.2,
+                    textTransform: "uppercase",
+                    color: "rgb(91, 211, 151)",
+                  }}>
+                    The following players missed the cut
                   </div>
                 )}
               </Fragment>
@@ -1618,7 +1684,7 @@ function InlineDropdown({ label, items, currentId, onSelect, color, style, align
   );
 }
 
-function Leaderboard({ tournament, group, tournamentName, groupName, allTournaments, allGroups, onSwitch }) {
+function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupName, allTournaments, allGroups, onSwitch }) {
   const [picks, setPicks] = useState([]);
   const [liveScores, setLiveScores] = useState({});
   const [cutHappened, setCutHappened] = useState(false);
@@ -1904,7 +1970,7 @@ function Leaderboard({ tournament, group, tournamentName, groupName, allTourname
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
       {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} allGroups={allGroups} onSave={savePicks} onClose={() => { setShowAdmin(false); loadPicks(); }} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
-      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} cutHappened={cutHappened} />
+      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} tournamentLogo={tournamentLogo} cutHappened={cutHappened} />
     </div>
   );
 }
@@ -1965,6 +2031,7 @@ function AppShell() {
       tournament={tournament}
       group={group}
       tournamentName={tournamentMeta.display_name}
+      tournamentLogo={tournamentMeta.logo_url || null}
       groupName={groupMeta.display_name}
       allTournaments={allTournaments}
       allGroups={allGroups}

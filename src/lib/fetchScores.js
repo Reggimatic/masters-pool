@@ -55,6 +55,14 @@ export async function computeScores(golferNames, tournamentName) {
   // Cap round at 4 — playoff holes should not affect pool scoring
   if (round > 4) round = 4;
 
+  // "Round 2 - Play Complete" means the cut has been made but ESPN hasn't
+  // advanced the round counter yet. ESPN also doesn't tag individual
+  // competitors as cut on the scoreboard endpoint, so we must compute the
+  // made-cut set ourselves (see below).
+  const round2Completed =
+    round === 2 &&
+    (competition.status?.type?.completed === true || /complete/i.test(statusDetail));
+
   // Try to fetch per-hole par from ESPN's core API (authoritative course data).
   let coursePar = null;
   try {
@@ -178,6 +186,50 @@ export async function computeScores(golferNames, tournamentName) {
     return status === "cut" || status === "missed cut";
   });
 
+  // ESPN does not tag individual competitors as cut on the scoreboard
+  // endpoint, and eagerly adds an empty round-3 linescore entry to every
+  // player as soon as round 3 is scheduled — which breaks our old
+  // "linescores.length > 2 → made cut" heuristic. Compute the made-cut set
+  // ourselves using the Masters top-50-and-ties rule whenever the cut has
+  // been made. The cut is based on R1+R2 totals only — using live regulation
+  // scores would let mid-R3 play slide players across the cut line.
+  // TODO: make the cut rule per-tournament (see project_cut_rules_per_tournament.md).
+  const getR1R2Score = (c) => {
+    const ls = c.linescores || [];
+    let total = 0;
+    let hasAny = false;
+    for (let r = 1; r <= 2; r++) {
+      const rs = ls.find((l) => l.period === r);
+      if (rs?.displayValue != null && rs.displayValue !== "") {
+        const val = parseScore(String(rs.displayValue));
+        if (val !== null) {
+          total += val;
+          hasAny = true;
+        }
+      }
+    }
+    return hasAny ? total : null;
+  };
+
+  let computedMadeCutIds = null;
+  if (!hasCutIndicators && (round2Completed || round >= 3)) {
+    const CUT_RANK = 50;
+    const eligible = competitors
+      .filter((c) => !withdrawnNames.has(normalize(c.athlete?.displayName || c.athlete?.shortName || "")))
+      .map((c) => ({ c, score: getR1R2Score(c) }))
+      .filter((x) => x.score != null)
+      .sort((a, b) => a.score - b.score);
+    if (eligible.length > 0) {
+      const cutLineScore =
+        eligible.length >= CUT_RANK
+          ? eligible[CUT_RANK - 1].score
+          : eligible[eligible.length - 1].score;
+      computedMadeCutIds = new Set(
+        eligible.filter((x) => x.score <= cutLineScore).map((x) => x.c.id)
+      );
+    }
+  }
+
   // Helper: determine if a competitor made the cut (and is still active)
   const didMakeCut = (c) => {
     const name = c.athlete?.displayName || c.athlete?.shortName || "";
@@ -186,6 +238,7 @@ export async function computeScores(golferNames, tournamentName) {
     if (status === "cut" || status === "missed cut") return false;
     if (status === "wd" || status === "dq") return false;
     if (hasCutIndicators) return true;
+    if (computedMadeCutIds) return computedMadeCutIds.has(c.id);
 
     // No explicit cut statuses — infer from linescore count.
     if (round >= 3) {
@@ -195,7 +248,7 @@ export async function computeScores(golferNames, tournamentName) {
   };
 
   let worstMadeCutGolfers = [];
-  if (hasCutIndicators || round >= 3) {
+  if (hasCutIndicators || round >= 3 || round2Completed) {
     cutHappened = true;
     const madeCutCompetitors = competitors.filter((c) => didMakeCut(c));
     const madeCutScores = madeCutCompetitors
