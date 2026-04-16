@@ -9,24 +9,36 @@ import { supabase } from "@/lib/supabase";
  * @returns {{ error?: string, status?: number, ...results }} - Computed scores or error
  */
 export async function computeScores(golferNames, tournamentName) {
-  const espnRes = await fetch(
-    "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
-    { next: { revalidate: 0 } }
-  );
-  if (!espnRes.ok) {
-    return { error: `ESPN API returned ${espnRes.status}`, status: 502 };
-  }
-
-  const espn = await espnRes.json();
-
-  // Find the matching event — strip leading year (e.g. "2026 Masters" → "Masters")
-  const events = espn.events || [];
+  // Try the live scoreboard first, then fall back to the season-dated endpoint.
+  // ESPN's live scoreboard only shows the current week's event, so once a
+  // tournament ends and the next week's event begins, the old one disappears
+  // from /scoreboard. The ?dates=<year> endpoint retains finalized events for
+  // the full season, which lets us archive a tournament we forgot to snapshot.
   const stripYear = (s) => (s || "").replace(/^\d{4}\s+/, "").toLowerCase();
   const needle = stripYear(tournamentName);
-  const event = events.find((e) => {
+  const matchEvent = (events) => events.find((e) => {
     const espnName = (e.name || "").toLowerCase();
     return espnName.includes(needle) || stripYear(e.name).includes(needle);
   });
+
+  const year = new Date().getFullYear();
+  let event = null;
+  for (const url of [
+    "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
+    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${year}`,
+  ]) {
+    const espnRes = await fetch(url, { next: { revalidate: 0 } });
+    if (!espnRes.ok) {
+      // Only bail on the first URL; if the fallback fails we still return 404 below.
+      if (url.endsWith("/scoreboard")) {
+        return { error: `ESPN API returned ${espnRes.status}`, status: 502 };
+      }
+      continue;
+    }
+    const espn = await espnRes.json();
+    const found = matchEvent(espn.events || []);
+    if (found) { event = found; break; }
+  }
 
   if (!event) {
     return { error: "Tournament not yet available on ESPN", status: 404 };
