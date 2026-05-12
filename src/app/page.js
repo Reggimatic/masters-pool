@@ -144,7 +144,7 @@ function PickerPage({ onSelect }) {
 
 // ─── Shared UI Components ────────────────────────────────────────────────────
 
-function NextUpdateTimer({ lastUpdated, onRefresh }) {
+function NextUpdateTimer({ lastUpdated, onRefresh, theme = DEFAULT_THEME }) {
   const [remaining, setRemaining] = useState(5 * 60);
   useEffect(() => {
     const calc = () => Math.max(0, 5 * 60 - Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
@@ -154,9 +154,9 @@ function NextUpdateTimer({ lastUpdated, onRefresh }) {
   }, [lastUpdated]);
   const mins = Math.ceil(remaining / 60);
   return (
-    <span style={{ color: "#5BD397", fontSize: 11 }}>
+    <span style={{ color: theme.link, fontSize: 11 }}>
       Next update: {mins}m
-      <button onClick={onRefresh} style={{ background: "rgb(26, 68, 46)", border: "1px solid rgb(51, 124, 87)", color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
+      <button onClick={onRefresh} style={{ background: "rgba(255, 255, 255, 0.12)", border: `1px solid ${theme.headerBorder}`, color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
     </span>
   );
 }
@@ -415,7 +415,7 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
   );
 }
 
-function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor, expandedGolfers, onGolferToggle, coursePar, isArchived }) {
+function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor, expandedGolfers, onGolferToggle, coursePar, isArchived, theme = DEFAULT_THEME }) {
   // Prefetch golfer bios + headshots when the team card expands,
   // so the per-golfer profile pops in smoothly.
   useEffect(() => {
@@ -471,7 +471,7 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: expanded ? 24 : 18, color: "#143625", fontWeight: 700, letterSpacing: 0.5 }}>{team.name}</div>
+          <div style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: expanded ? 24 : 18, color: theme.headerBg, fontWeight: 700, letterSpacing: 0.5 }}>{team.name}</div>
           {!expanded && previewItems.length > 0 && (
             <div style={{ fontSize: 11, color: "#888", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {previewItems}
@@ -1269,6 +1269,28 @@ function PasswordModal({ onSuccess, onClose }) {
 
 const TEAM_COLORS = ["#BA0C2F", "#2E7450", "#1a6dd4", "#e6a817", "#9b59b6", "#e67e22", "#1abc9c", "#e74c3c", "#3498db", "#2ecc71"];
 
+const DEFAULT_THEME = {
+  headerBg: "#143625",
+  headerBorder: "#337B57",
+  pageBg: "linear-gradient(180deg, #22563C 0%, #173C29 100%)",
+  accent: "#FCE300",
+  link: "#5BD397",
+};
+
+const TOURNAMENT_THEMES = {
+  "pga-championship-2026": {
+    headerBg: "#001529",
+    headerBorder: "#146dc1",
+    pageBg: "linear-gradient(#01274a, #001529)",
+    accent: "#B9CBD3",
+    link: "#3bc5ff",
+  },
+};
+
+function getTheme(tournamentId) {
+  return TOURNAMENT_THEMES[tournamentId] || DEFAULT_THEME;
+}
+
 function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores }) {
   const ALL_LABELS = ["R1-Out", "R1-Tot", "R2-Out", "R2-Tot", "R3-Out", "R3-Tot", "R4-Out", "R4-Tot"];
 
@@ -1475,7 +1497,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
 
 // ─── Field Drawer ────────────────────────────────────────────────────────────
 
-function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tournamentLogo, cutHappened }) {
+function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tournamentLogo, cutHappened, theme = DEFAULT_THEME }) {
   // Format a to-par score (null/undefined → blank, 0 → "E", pos → "+n")
   const fmt = (v) => {
     if (v == null) return "";
@@ -1553,7 +1575,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0,
         width: "min(420px, 92vw)",
-        background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)",
+        background: theme.pageBg,
         color: "#e8dfc4",
         transform: open ? "translateX(0)" : "translateX(100%)",
         transition: "transform 0.28s ease",
@@ -1562,7 +1584,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
         boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
       }}>
         {/* Header */}
-        <div style={{ padding: "14px 16px", background: "#0F281C", borderBottom: "1px solid #337B57", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "14px 16px", background: theme.headerBg, borderBottom: `1px solid ${theme.headerBorder}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             {tournamentLogo && (
               <img
@@ -1572,7 +1594,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
               />
             )}
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#FCE300", letterSpacing: 2, textTransform: "uppercase" }}>{tournamentName}</div>
+              <div style={{ fontSize: 10, fontFamily: "var(--font-source-serif), Georgia, serif", color: theme.accent, letterSpacing: 2, textTransform: "uppercase" }}>{tournamentName}</div>
               <div style={{ fontSize: 18, fontFamily: "var(--font-source-serif), Georgia, serif", color: "#ffffff", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 300 }}>Full Field</div>
             </div>
           </div>
@@ -1585,7 +1607,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
         </div>
 
         {/* Column header row */}
-        <div style={{ display: "grid", gridTemplateColumns: "36px 1fr 44px 44px 44px", alignItems: "center", gap: 6, padding: "8px 12px 8px 2px", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#5BD397", borderBottom: "1px solid rgba(91,211,151,0.3)", background: "rgba(0,0,0,0.15)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "36px 1fr 44px 44px 44px", alignItems: "center", gap: 6, padding: "8px 12px 8px 2px", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: theme.link, borderBottom: "1px solid rgba(255,255,255,0.25)", background: "rgba(0,0,0,0.15)" }}>
           <div style={{ textAlign: "right" }}>Pos</div>
           <div>Player</div>
           <div style={{ textAlign: "right" }}>Today</div>
@@ -1609,7 +1631,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
                     gap: 6,
                     padding: "8px 12px 8px 2px",
                     borderBottom: "1px solid rgba(255,255,255,0.06)",
-                    background: drafted ? "rgba(252, 227, 0, 0.08)" : "transparent",
+                    background: drafted ? "rgba(255, 255, 255, 0.08)" : "transparent",
                     fontSize: 13,
                     color: p.missedCut || p.withdrawn ? "#888" : "#ffffff",
                   }}
@@ -1620,7 +1642,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {formatName(p.name)}
                       {drafted && (
-                        <span style={{ color: "#FCE300", fontSize: 11, marginLeft: 4 }}>
+                        <span style={{ color: theme.link, fontSize: 11, marginLeft: 4 }}>
                           ({owners.join(", ")})
                         </span>
                       )}
@@ -1711,6 +1733,7 @@ function InlineDropdown({ label, items, currentId, onSelect, color, style, align
 }
 
 function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupName, allTournaments, allGroups, onSwitch }) {
+  const theme = getTheme(tournament);
   const [picks, setPicks] = useState([]);
   const [liveScores, setLiveScores] = useState({});
   const [cutHappened, setCutHappened] = useState(false);
@@ -1896,17 +1919,17 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupN
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #22563C 0%, #173C29 100%)", color: "#e8dfc4" }}>
-      <div style={{ padding: "16px 18px 12px", textAlign: "center", background: "#143625", borderBottom: "1px solid #337B57", position: "relative" }}>
-        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: "#FCE300", letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
-          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color="#FCE300" align="center" />
+    <div style={{ minHeight: "100vh", background: theme.pageBg, color: "#e8dfc4" }}>
+      <div style={{ padding: "16px 18px 12px", textAlign: "center", background: theme.headerBg, borderBottom: `1px solid ${theme.headerBorder}`, position: "relative" }}>
+        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: theme.accent, letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
+          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color={theme.accent} align="center" />
         </div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
         {field.length > 0 && !isArchived && (
           <button
             onClick={() => setShowFieldDrawer(true)}
             title="View full field"
-            style={{ position: "absolute", right: 7, top: "59%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "#e8dfc4", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+            style={{ position: "absolute", right: 7, top: "59%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "rgba(255, 255, 255, 0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="8" y1="6" x2="21" y2="6" />
@@ -1922,11 +1945,11 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupN
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color="#FCE300" style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} />
+          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} />
           {picks.length > 0 && (
             <div onClick={() => setShowChart(!showChart)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
-              <span style={{ fontSize: 13, color: "#5BD397", letterSpacing: 0.5 }}>Tournament Flow</span>
-              <div style={{ width: 32, height: 18, borderRadius: 9, background: showChart ? "#5BD397" : "rgb(51, 124, 87)", position: "relative", transition: "background 0.2s" }}>
+              <span style={{ fontSize: 13, color: theme.link, letterSpacing: 0.5 }}>Tournament Flow</span>
+              <div style={{ width: 32, height: 18, borderRadius: 9, background: showChart ? theme.link : "rgba(255, 255, 255, 0.25)", position: "relative", transition: "background 0.2s" }}>
                 <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: showChart ? 16 : 2, transition: "left 0.2s" }} />
               </div>
             </div>
@@ -1943,7 +1966,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupN
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} />}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
-              <div style={{ color: "#5BD397", position: "relative" }}>
+              <div style={{ color: theme.link, position: "relative" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
                   <><span onClick={() => setShowCutDialog(!showCutDialog)} style={{ cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}>Lowest made cut:</span>{" "}{worstMadeCut > 0 ? `+${worstMadeCut}` : worstMadeCut === 0 ? "E" : worstMadeCut}{` (${worstMadeCutName.split(" ").length > 1 ? `${worstMadeCutName[0]}. ${worstMadeCutName.split(" ").slice(1).join(" ")}` : worstMadeCutName})`}</>
                 )}
@@ -1965,15 +1988,15 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupN
                   </div>
                 )}
               </div>
-              <div style={{ color: "#5BD397" }}>
+              <div style={{ color: theme.link }}>
                 {isArchived ? (
-                  <span style={{ background: "rgb(252, 227, 0)", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: "rgb(13, 31, 20)", letterSpacing: 1, textTransform: "uppercase", fontWeight: 700 }}>Final</span>
+                  <span style={{ background: theme.accent, border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: "rgb(13, 31, 20)", letterSpacing: 1, textTransform: "uppercase", fontWeight: 700 }}>Final</span>
                 ) : roundStatus || null}
               </div>
             </div>
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => { skipReorderAnim.current = true; setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; }); }} coursePar={coursePar} isArchived={isArchived} />
+                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => { skipReorderAnim.current = true; setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; }); }} coursePar={coursePar} isArchived={isArchived} theme={theme} />
               </div>
             ))}
           </div>
@@ -1982,21 +2005,21 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupN
         <div style={{ marginTop: 14, fontSize: 11, color: "#5BD397", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             {isArchived ? null
-              : loading ? <span style={{ color: "#5BD397" }}>Scores updating...</span>
-              : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} />
+              : loading ? <span style={{ color: theme.link }}>Scores updating...</span>
+              : lastUpdated ? <NextUpdateTimer lastUpdated={lastUpdated} onRefresh={fetchScores} theme={theme} />
               : <span style={{ color: "#555" }}>—</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: "#5BD397", textDecoration: "underline" }}>Rules</a>
-            <span style={{ color: "#5BD397" }}>|</span>
-            <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: "#5BD397", cursor: "pointer", textDecoration: "underline" }}>Admin</a>
+            <a href={`/rules?tournament=${tournament}&group=${group}`} style={{ color: theme.link, textDecoration: "underline" }}>Rules</a>
+            <span style={{ color: theme.link }}>|</span>
+            <a onClick={() => authed ? setShowAdmin(true) : setShowPasswordModal(true)} style={{ color: theme.link, cursor: "pointer", textDecoration: "underline" }}>Admin</a>
           </div>
         </div>
       </div>
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
       {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} allGroups={allGroups} onSave={savePicks} onClose={() => { setShowAdmin(false); loadPicks(); }} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
-      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} tournamentLogo={tournamentLogo} cutHappened={cutHappened} />
+      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} tournamentLogo={tournamentLogo} cutHappened={cutHappened} theme={theme} />
     </div>
   );
 }
