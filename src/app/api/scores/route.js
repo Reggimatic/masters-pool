@@ -35,7 +35,7 @@ export async function POST(request) {
   }
 
   // Live ESPN fetch
-  const result = await computeScores(golferNames, tournamentName);
+  const result = await computeScores(golferNames, tournamentName, tournamentId);
 
   // Tournament not on ESPN yet — return a pre-tournament placeholder
   if (result.status === 404) {

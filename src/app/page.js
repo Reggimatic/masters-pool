@@ -744,23 +744,23 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
   useEffect(() => {
     if (tab === "withdrawals") {
       (async () => {
-        const { data } = await supabase.from("withdrawals").select("*").eq("tournament", tournamentName);
+        const { data } = await supabase.from("withdrawals").select("*").eq("tournament", tournament);
         setWithdrawals(data || []);
       })();
     }
-  }, [tab, tournamentName]);
+  }, [tab, tournament]);
 
   const addWithdrawal = async () => {
     if (!newWithdrawal.trim()) return;
-    await supabase.from("withdrawals").insert({ tournament: tournamentName, golfer_name: newWithdrawal.trim() });
+    await supabase.from("withdrawals").insert({ tournament, golfer_name: newWithdrawal.trim() });
     setNewWithdrawal("");
-    const { data } = await supabase.from("withdrawals").select("*").eq("tournament", tournamentName);
+    const { data } = await supabase.from("withdrawals").select("*").eq("tournament", tournament);
     setWithdrawals(data || []);
     if (onWithdrawalsChange) onWithdrawalsChange();
   };
 
   const removeWithdrawal = async (golferName) => {
-    await supabase.from("withdrawals").delete().eq("tournament", tournamentName).eq("golfer_name", golferName);
+    await supabase.from("withdrawals").delete().eq("tournament", tournament).eq("golfer_name", golferName);
     setWithdrawals(w => w.filter(x => x.golfer_name !== golferName));
     if (onWithdrawalsChange) onWithdrawalsChange();
   };

@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabase";
  *
  * @param {string[]} golferNames - Array of golfer names to look up
  * @param {string} tournamentName - Tournament display name for ESPN matching
+ * @param {string} [tournamentId] - Tournament ID for withdrawals lookup (optional)
  * @returns {{ error?: string, status?: number, ...results }} - Computed scores or error
  */
-export async function computeScores(golferNames, tournamentName) {
+export async function computeScores(golferNames, tournamentName, tournamentId) {
   // Try the live scoreboard first, then fall back to the season-dated endpoint.
   // ESPN's live scoreboard only shows the current week's event, so once a
   // tournament ends and the next week's event begins, the old one disappears
@@ -172,11 +173,11 @@ export async function computeScores(golferNames, tournamentName) {
     return hasAny ? total : null;
   };
 
-  // Fetch manual withdrawals from Supabase
+  // Fetch manual withdrawals from Supabase (keyed by tournament ID)
   const { data: withdrawalData } = await supabase
     .from("withdrawals")
     .select("golfer_name")
-    .eq("tournament", tournamentName);
+    .eq("tournament", tournamentId);
   const withdrawnNames = new Set((withdrawalData || []).map((w) => normalize(w.golfer_name)));
 
   // Check if any competitor has explicit status indicating they missed the cut

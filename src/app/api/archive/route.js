@@ -26,7 +26,7 @@ export async function POST(request) {
     }
 
     // Fetch live scores from ESPN
-    const result = await computeScores(allGolferNames, tournamentName);
+    const result = await computeScores(allGolferNames, tournamentName, tournamentId);
 
     if (result.error) {
       return Response.json({ error: result.error }, { status: result.status || 500 });
