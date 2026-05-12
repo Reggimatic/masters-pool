@@ -531,6 +531,9 @@ export async function fetchAllCompetitors(tournamentName) {
   const stripYear = (s) => (s || "").replace(/^\d{4}\s+/, "").toLowerCase();
   const needle = stripYear(tournamentName);
 
+  let espnReachable = false;
+  let matchedEventWithoutField = false;
+
   // Try season endpoint first — it has fields for upcoming tournaments
   for (const url of [
     `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${year}`,
@@ -538,18 +541,30 @@ export async function fetchAllCompetitors(tournamentName) {
   ]) {
     const espnRes = await fetch(url, { next: { revalidate: 0 } });
     if (!espnRes.ok) continue;
+    espnReachable = true;
     const espn = await espnRes.json();
     const events = espn.events || [];
     const event = events.find((e) => {
       const espnName = (e.name || "").toLowerCase();
       return espnName.includes(needle) || stripYear(e.name).includes(needle);
     });
-    if (event && (event.competitions?.[0]?.competitors?.length || 0) > 0) {
+    if (!event) continue;
+    if ((event.competitions?.[0]?.competitors?.length || 0) > 0) {
       return buildCompetitorResult(event);
     }
+    matchedEventWithoutField = true;
   }
 
-  return { error: "Tournament not found on ESPN", status: 404 };
+  if (matchedEventWithoutField) {
+    return {
+      error: "Tournament field not yet published by ESPN. ESPN typically populates the field a few days before the first round — try again closer to tee time.",
+      status: 503,
+    };
+  }
+  if (!espnReachable) {
+    return { error: "ESPN API is unreachable. Try again in a moment.", status: 502 };
+  }
+  return { error: "No tournament matching that name found on ESPN. Check the tournament name.", status: 404 };
 }
 
 function buildCompetitorResult(event) {
