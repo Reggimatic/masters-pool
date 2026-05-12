@@ -797,11 +797,37 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
   };
 
   const deleteTournament = async (id) => {
+    const tourn = tournaments.find(x => x.id === id);
+    const name = tourn?.display_name || id;
+
+    const [picksRes, withdrawalsRes, archiveRes] = await Promise.all([
+      supabase.from("picks").select("*", { count: "exact", head: true }).eq("tournament", id),
+      supabase.from("withdrawals").select("*", { count: "exact", head: true }).eq("tournament", id),
+      supabase.from("tournament_results").select("*", { count: "exact", head: true }).eq("tournament", id),
+    ]);
+
+    const picksCount = picksRes.count || 0;
+    const withdrawalsCount = withdrawalsRes.count || 0;
+    const isArchived = (archiveRes.count || 0) > 0;
+
+    const parts = [];
+    if (picksCount > 0) parts.push(`${picksCount} saved pick${picksCount === 1 ? "" : "s"}`);
+    if (withdrawalsCount > 0) parts.push(`${withdrawalsCount} withdrawal${withdrawalsCount === 1 ? "" : "s"}`);
+    if (isArchived) parts.push("an archived results snapshot");
+
+    const impact = parts.length
+      ? `This tournament has ${parts.join(", ")}. Those rows will be orphaned (not auto-cleaned).\n\n`
+      : "";
+    if (!confirm(`Delete tournament "${name}"?\n\n${impact}This cannot be undone.`)) return;
+
     await supabase.from("tournaments").delete().eq("id", id);
     setTournaments(t => t.filter(x => x.id !== id));
   };
 
   const deleteGroup = async (id) => {
+    const grp = groups.find(x => x.id === id);
+    const name = grp?.display_name || id;
+    if (!confirm(`Delete group "${name}"?\n\nSaved picks for this group will be orphaned. This cannot be undone.`)) return;
     await supabase.from("groups").delete().eq("id", id);
     setGroups(g => g.filter(x => x.id !== id));
   };
