@@ -173,12 +173,13 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
     return hasAny ? total : null;
   };
 
-  // Fetch manual withdrawals from Supabase (keyed by tournament ID)
-  const { data: withdrawalData } = await supabase
-    .from("withdrawals")
-    .select("golfer_name")
-    .eq("tournament", tournamentId);
+  // Fetch manual withdrawals and tournament config from Supabase
+  const [{ data: withdrawalData }, { data: tournamentRow }] = await Promise.all([
+    supabase.from("withdrawals").select("golfer_name").eq("tournament", tournamentId),
+    supabase.from("tournaments").select("cut_line_top_n").eq("id", tournamentId).maybeSingle(),
+  ]);
   const withdrawnNames = new Set((withdrawalData || []).map((w) => normalize(w.golfer_name)));
+  const cutLineTopN = tournamentRow?.cut_line_top_n ?? 70;
 
   // Check if any competitor has explicit status indicating they missed the cut
   const hasCutIndicators = competitors.some((c) => {
@@ -190,13 +191,11 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
   // endpoint, and eagerly adds an empty round-3 linescore entry to every
   // player as soon as round 3 is scheduled — which breaks our old
   // "linescores.length > 2 → made cut" heuristic. Compute the made-cut set
-  // ourselves using the Masters top-50-and-ties rule whenever the cut has
-  // been made. The cut is based on R1+R2 totals only — using live regulation
-  // scores would let mid-R3 play slide players across the cut line.
-  // TODO: make the cut rule per-tournament (see project_cut_rules_per_tournament.md).
+  // ourselves using each tournament's "top N and ties" rule whenever the cut
+  // has been made. The cut is based on R1+R2 totals only — using live
+  // regulation scores would let mid-R3 play slide players across the cut line.
   let computedMadeCutIds = null;
   if (!hasCutIndicators && (round2Completed || round >= 3)) {
-    const CUT_RANK = 50;
     const eligible = competitors
       .filter((c) => !withdrawnNames.has(normalize(c.athlete?.displayName || c.athlete?.shortName || "")))
       .map((c) => ({ c, score: getR1R2Score(c) }))
@@ -204,8 +203,8 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
       .sort((a, b) => a.score - b.score);
     if (eligible.length > 0) {
       const cutLineScore =
-        eligible.length >= CUT_RANK
-          ? eligible[CUT_RANK - 1].score
+        eligible.length >= cutLineTopN
+          ? eligible[cutLineTopN - 1].score
           : eligible[eligible.length - 1].score;
       computedMadeCutIds = new Set(
         eligible.filter((x) => x.score <= cutLineScore).map((x) => x.c.id)
