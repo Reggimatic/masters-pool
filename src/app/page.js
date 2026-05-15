@@ -1497,7 +1497,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
 
 // ─── Field Drawer ────────────────────────────────────────────────────────────
 
-function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tournamentLogo, cutHappened, theme = DEFAULT_THEME }) {
+function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tournamentLogo, cutHappened, cutLineTopN = 70, theme = DEFAULT_THEME }) {
   // Format a to-par score (null/undefined → blank, 0 → "E", pos → "+n")
   const fmt = (v) => {
     if (v == null) return "";
@@ -1514,14 +1514,13 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
     return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
   };
 
-  // Projected cut line — Masters: top 50 and ties.
+  // Projected cut line — top N and ties, where N is per-tournament.
   // Only meaningful before the actual cut and once scoring data exists.
-  const CUT_LINE_RANK = 50;
   const projectedCutScore = (() => {
     if (cutHappened) return null;
     const active = field.filter(p => !p.withdrawn && !p.missedCut && p.relative != null);
-    if (active.length < CUT_LINE_RANK) return null;
-    return active[CUT_LINE_RANK - 1]?.relative ?? null;
+    if (active.length < cutLineTopN) return null;
+    return active[cutLineTopN - 1]?.relative ?? null;
   })();
   // Index (in the full field list) of the last player who makes the projected cut
   const projectedCutLastIdx = projectedCutScore == null ? -1 : (() => {
@@ -1732,7 +1731,7 @@ function InlineDropdown({ label, items, currentId, onSelect, color, style, align
   );
 }
 
-function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupName, allTournaments, allGroups, onSwitch }) {
+function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLineTopN, groupName, allTournaments, allGroups, onSwitch }) {
   const theme = getTheme(tournament);
   const [picks, setPicks] = useState([]);
   const [liveScores, setLiveScores] = useState({});
@@ -2019,7 +2018,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, groupN
 
       {showPasswordModal && <PasswordModal onSuccess={() => { setAuthed(true); setShowPasswordModal(false); setShowAdmin(true); }} onClose={() => setShowPasswordModal(false)} />}
       {showAdmin && <AdminPanel picks={picks} tournament={tournament} group={group} tournamentName={tournamentName} groupName={groupName} allGroups={allGroups} onSave={savePicks} onClose={() => { setShowAdmin(false); loadPicks(); }} avatars={avatars} onAvatarsChange={setAvatars} onWithdrawalsChange={fetchScores} />}
-      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} tournamentLogo={tournamentLogo} cutHappened={cutHappened} theme={theme} />
+      <FieldDrawer open={showFieldDrawer} onClose={() => setShowFieldDrawer(false)} field={field} golferToOwners={golferToOwners} tournamentName={tournamentName} tournamentLogo={tournamentLogo} cutHappened={cutHappened} cutLineTopN={cutLineTopN} theme={theme} />
     </div>
   );
 }
@@ -2081,6 +2080,7 @@ function AppShell() {
       group={group}
       tournamentName={tournamentMeta.display_name}
       tournamentLogo={tournamentMeta.logo_url || null}
+      cutLineTopN={tournamentMeta.cut_line_top_n ?? 70}
       groupName={groupMeta.display_name}
       allTournaments={allTournaments}
       allGroups={allGroups}
