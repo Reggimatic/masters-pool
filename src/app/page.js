@@ -1654,16 +1654,16 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
                 {i === projectedCutLastIdx && (
                   <div style={{
                     padding: "6px 12px",
-                    background: "rgb(15, 38, 26)",
-                    borderTop: "1px dashed rgb(91, 211, 151)",
-                    borderBottom: "1px dashed rgb(91, 211, 151)",
+                    background: "rgba(0,0,0,0.5)",
+                    borderTop: `1px dashed ${theme.link}`,
+                    borderBottom: `1px dashed ${theme.link}`,
                     textAlign: "center",
                     fontFamily: "var(--font-open-sans), 'Open Sans', sans-serif",
                     fontSize: 11,
                     fontWeight: 500,
                     letterSpacing: 1.2,
                     textTransform: "uppercase",
-                    color: "rgb(91, 211, 151)",
+                    color: theme.link,
                   }}>
                     Projected Cut
                   </div>
@@ -1671,16 +1671,16 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
                 {i === actualCutLastMadeIdx && (
                   <div style={{
                     padding: "6px 12px",
-                    background: "rgb(15, 38, 26)",
-                    borderTop: "1px dashed rgb(91, 211, 151)",
-                    borderBottom: "1px dashed rgb(91, 211, 151)",
+                    background: "rgba(0,0,0,0.5)",
+                    borderTop: `1px dashed ${theme.link}`,
+                    borderBottom: `1px dashed ${theme.link}`,
                     textAlign: "center",
                     fontFamily: "var(--font-open-sans), 'Open Sans', sans-serif",
                     fontSize: 11,
                     fontWeight: 500,
                     letterSpacing: 1.2,
                     textTransform: "uppercase",
-                    color: "rgb(91, 211, 151)",
+                    color: theme.link,
                   }}>
                     The following players missed the cut
                   </div>
