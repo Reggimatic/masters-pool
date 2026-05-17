@@ -1273,6 +1273,7 @@ const DEFAULT_THEME = {
   headerBg: "#143625",
   headerBorder: "#337B57",
   pageBg: "linear-gradient(180deg, #22563C 0%, #173C29 100%)",
+  pageBgTop: "#22563C",
   accent: "#FCE300",
   link: "#5BD397",
 };
@@ -1282,6 +1283,7 @@ const TOURNAMENT_THEMES = {
     headerBg: "#001529",
     headerBorder: "#146dc1",
     pageBg: "linear-gradient(#01274a, #001529)",
+    pageBgTop: "#01274a",
     accent: "#B9CBD3",
     link: "#3bc5ff",
   },
@@ -1696,7 +1698,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
 
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
-function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left" }) {
+function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left", theme = DEFAULT_THEME }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -1713,12 +1715,12 @@ function InlineDropdown({ label, items, currentId, onSelect, color, style, align
         <span style={{ fontSize: "0.75em", marginRight: 4, opacity: 0.7 }}>▾</span>{label}
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "100%", ...(align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 }), marginTop: 6, background: "#143625", border: "1px solid #337B57", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, minWidth: 180, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "100%", ...(align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 }), marginTop: 6, background: theme.pageBgTop, border: `1px solid ${theme.headerBorder}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, minWidth: 180, overflow: "hidden" }}>
           {items.map(item => (
             <div
               key={item.id}
               onClick={() => { onSelect(item.id); setOpen(false); }}
-              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? "#FCE300" : "#e8dfc4", cursor: "pointer", borderBottom: "1px solid rgba(51,123,87,0.3)", whiteSpace: "nowrap" }}
+              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? theme.link : "#ffffff", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.15)", whiteSpace: "nowrap" }}
               onMouseEnter={e => { if (item.id !== currentId) e.target.style.background = "rgba(255,255,255,0.05)"; }}
               onMouseLeave={e => { e.target.style.background = "transparent"; }}
             >
@@ -1921,7 +1923,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
     <div style={{ minHeight: "100vh", background: theme.pageBg, color: "#e8dfc4" }}>
       <div style={{ padding: "16px 18px 12px", textAlign: "center", background: theme.headerBg, borderBottom: `1px solid ${theme.headerBorder}`, position: "relative" }}>
         <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: theme.accent, letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
-          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color={theme.accent} align="center" />
+          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color={theme.accent} align="center" theme={theme} />
         </div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
         {field.length > 0 && !isArchived && (
@@ -1944,7 +1946,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} />
+          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} theme={theme} />
           {picks.length > 0 && (
             <div onClick={() => setShowChart(!showChart)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
               <span style={{ fontSize: 13, color: theme.link, letterSpacing: 0.5 }}>Tournament Flow</span>
