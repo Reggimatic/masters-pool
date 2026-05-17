@@ -1291,7 +1291,7 @@ function getTheme(tournamentId) {
   return TOURNAMENT_THEMES[tournamentId] || DEFAULT_THEME;
 }
 
-function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores }) {
+function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores, theme = DEFAULT_THEME }) {
   const ALL_LABELS = ["R1-Out", "R1-Tot", "R2-Out", "R2-Tot", "R3-Out", "R3-Tot", "R4-Out", "R4-Tot"];
 
   // Determine the maximum number of 9-hole checkpoints any golfer has completed
@@ -1425,7 +1425,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
                 {label}
               </text>
             );
-          }} axisLine={{ stroke: "#337B57" }} tickLine={false} />
+          }} axisLine={{ stroke: theme.headerBorder }} tickLine={false} />
           <YAxis tick={{ fill: "#e8dfc4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={formatScore} width={35} reversed />
           <Tooltip
             contentStyle={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12 }}
@@ -1963,7 +1963,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} />}
+            {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} theme={theme} />}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
               <div style={{ color: theme.link, position: "relative" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
