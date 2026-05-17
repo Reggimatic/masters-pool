@@ -1276,6 +1276,7 @@ const DEFAULT_THEME = {
   pageBgTop: "#22563C",
   accent: "#FCE300",
   link: "#5BD397",
+  menuSelected: "#FCE300",
 };
 
 const TOURNAMENT_THEMES = {
@@ -1286,6 +1287,7 @@ const TOURNAMENT_THEMES = {
     pageBgTop: "#01274a",
     accent: "#B9CBD3",
     link: "#3bc5ff",
+    menuSelected: "#3bc5ff",
   },
 };
 
@@ -1720,7 +1722,7 @@ function InlineDropdown({ label, items, currentId, onSelect, color, style, align
             <div
               key={item.id}
               onClick={() => { onSelect(item.id); setOpen(false); }}
-              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? theme.link : "#ffffff", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.15)", whiteSpace: "nowrap" }}
+              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? theme.menuSelected : "#ffffff", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.15)", whiteSpace: "nowrap" }}
               onMouseEnter={e => { if (item.id !== currentId) e.target.style.background = "rgba(255,255,255,0.05)"; }}
               onMouseLeave={e => { e.target.style.background = "transparent"; }}
             >
