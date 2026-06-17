@@ -1289,6 +1289,15 @@ const TOURNAMENT_THEMES = {
     link: "#3bc5ff",
     menuSelected: "#3bc5ff",
   },
+  "us-open-2026": {
+    headerBg: "#0C2340",
+    headerBorder: "#1D4E89",
+    pageBg: "linear-gradient(#0C2340, #06182E)",
+    pageBgTop: "#0C2340",
+    accent: "#C8102E",
+    link: "#9BB8D9",
+    menuSelected: "#C8102E",
+  },
 };
 
 function getTheme(tournamentId) {
