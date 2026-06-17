@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { GrRefresh } from "react-icons/gr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import ReactMarkdown from "react-markdown";
 
 const ADMIN_PASSWORD = "augusta2025";
 const GOLD = "#c9a84c";
@@ -660,6 +661,9 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
   const emptyGolfer = { name: "", country: "" };
   const [tab, setTab] = useState("picks");
   const [activeGroup, setActiveGroup] = useState(group);
+  const [previewBody, setPreviewBody] = useState("");
+  const [previewSaving, setPreviewSaving] = useState(false);
+  const [previewSaved, setPreviewSaved] = useState(false);
   const activeGroupName = (allGroups || []).find(g => g.id === activeGroup)?.display_name || activeGroup;
   const [teams, setTeams] = useState(
     picks.length > 0
@@ -763,6 +767,30 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
     await supabase.from("withdrawals").delete().eq("tournament", tournament).eq("golfer_name", golferName);
     setWithdrawals(w => w.filter(x => x.golfer_name !== golferName));
     if (onWithdrawalsChange) onWithdrawalsChange();
+  };
+
+  // Load the preview for the active group whenever the Preview tab is shown
+  // or the selected group changes.
+  useEffect(() => {
+    if (tab !== "preview") return;
+    setPreviewSaved(false);
+    (async () => {
+      const { data } = await supabase.from("previews").select("body").eq("tournament", tournament).eq("group_name", activeGroup).maybeSingle();
+      setPreviewBody(data?.body || "");
+    })();
+  }, [tab, tournament, activeGroup]);
+
+  const savePreview = async () => {
+    setPreviewSaving(true);
+    const body = previewBody.trim();
+    if (body) {
+      await supabase.from("previews").upsert({ tournament, group_name: activeGroup, body }, { onConflict: "tournament,group_name" });
+    } else {
+      // Empty body clears the preview for this group.
+      await supabase.from("previews").delete().eq("tournament", tournament).eq("group_name", activeGroup);
+    }
+    setPreviewSaving(false);
+    setPreviewSaved(true);
   };
 
   useEffect(() => {
@@ -944,6 +972,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
         {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid rgba(201,168,76,0.15)", marginBottom: 20 }}>
           <button style={tabStyle(tab === "picks")} onClick={() => setTab("picks")}>Picks</button>
+          <button style={tabStyle(tab === "preview")} onClick={() => setTab("preview")}>Preview</button>
           <button style={tabStyle(tab === "withdrawals")} onClick={() => setTab("withdrawals")}>Withdrawals</button>
           <button style={tabStyle(tab === "manage")} onClick={() => setTab("manage")}>Manage</button>
         </div>
@@ -1010,6 +1039,41 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
               <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: "rgb(252, 227, 0)", border: "none", color: "#0d1f14", borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>{saving ? "Saving..." : "Save Picks"}</button>
             </div>
           </>
+        )}
+
+        {tab === "preview" && (
+          <div>
+            <div style={{ fontSize: 12, color: "rgb(91, 211, 151)", marginBottom: 12, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+              <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Tournament:</strong> {tournamentName || tournament} &nbsp;&nbsp;
+              <strong style={{ color: "rgb(233, 255, 194)", textTransform: "uppercase" }}>Group:</strong>
+              {allGroups && allGroups.length > 1 ? (
+                <select
+                  value={activeGroup}
+                  onChange={e => setActiveGroup(e.target.value)}
+                  style={{ background: "rgb(14, 39, 26)", color: "rgb(91, 211, 151)", border: "1px solid rgb(47, 121, 84)", borderRadius: 4, padding: "2px 6px", fontSize: 12, outline: "none", cursor: "pointer" }}
+                >
+                  {allGroups.map(g => <option key={g.id} value={g.id}>{g.display_name}</option>)}
+                </select>
+              ) : (
+                <span>{activeGroupName}</span>
+              )}
+            </div>
+            <p style={{ color: "#fff", fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
+              Paste the preview as <strong style={{ color: "rgb(91, 211, 151)" }}>Markdown</strong> (headings <code>##</code>, <code>**bold**</code>, numbered lists). It shows above the team cards for this group — expanded before play, auto-collapsed once scores go live. Leave blank to remove it.
+            </p>
+            <textarea
+              value={previewBody}
+              onChange={e => { setPreviewBody(e.target.value); setPreviewSaved(false); }}
+              placeholder={"The U.S. Open is back at Shinnecock Hills...\n\n## Projected Finish\n\n1. **Rob** — ..."}
+              style={{ ...inputStyle, width: "100%", minHeight: 320, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 1.5, resize: "vertical" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+              <button onClick={savePreview} disabled={previewSaving} style={{ background: "rgb(252, 227, 0)", border: "none", color: "#0d1f14", borderRadius: 6, padding: "8px 18px", cursor: previewSaving ? "default" : "pointer", fontSize: 13, fontWeight: 700, opacity: previewSaving ? 0.6 : 1 }}>
+                {previewSaving ? "Saving..." : "Save Preview"}
+              </button>
+              {previewSaved && <span style={{ color: "rgb(91, 211, 151)", fontSize: 12 }}>Saved ✓</span>}
+            </div>
+          </div>
         )}
 
         {tab === "withdrawals" && (
@@ -1303,6 +1367,62 @@ const TOURNAMENT_THEMES = {
 
 function getTheme(tournamentId) {
   return TOURNAMENT_THEMES[tournamentId] || DEFAULT_THEME;
+}
+
+// ─── Tournament Preview Banner ───────────────────────────────────────────────
+// Renders an editor-written markdown preview above the team cards. Expanded
+// before the tournament starts; auto-collapses once scores go live (the
+// `defaultCollapsed` prop flips), but a manual toggle sticks until the next
+// status change.
+
+function PreviewBanner({ body, defaultCollapsed = false, theme = DEFAULT_THEME }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  useEffect(() => { setCollapsed(defaultCollapsed); }, [defaultCollapsed]);
+
+  if (!body || !body.trim()) return null;
+
+  const mdComponents = {
+    h1: ({ children }) => <div style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: 20, fontWeight: 700, color: "#fff", margin: "0 0 6px", letterSpacing: 0.5 }}>{children}</div>,
+    h2: ({ children }) => <div style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: 14, fontWeight: 700, color: theme.accent, textTransform: "uppercase", letterSpacing: 2, margin: "16px 0 8px" }}>{children}</div>,
+    h3: ({ children }) => <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "12px 0 6px" }}>{children}</div>,
+    p: ({ children }) => <p style={{ fontSize: 13.5, lineHeight: 1.65, color: "#fff", margin: "0 0 10px" }}>{children}</p>,
+    ol: ({ children }) => <ol className="preview-ol" style={{ paddingLeft: 22, margin: "0 0 10px", listStyleType: "decimal" }}>{children}</ol>,
+    ul: ({ children }) => <ul style={{ paddingLeft: 22, margin: "0 0 10px", listStyleType: "disc" }}>{children}</ul>,
+    li: ({ children }) => <li style={{ fontSize: 13.5, lineHeight: 1.55, color: theme.link, marginBottom: 8 }}>{children}</li>,
+    strong: ({ children }) => <strong style={{ color: "#fff", fontWeight: 700 }}>{children}</strong>,
+    em: ({ children }) => <em style={{ fontStyle: "normal" }}>{children}</em>,
+    a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" style={{ color: theme.link, textDecoration: "underline" }}>{children}</a>,
+    hr: () => <div style={{ height: 1, background: "rgba(255,255,255,0.15)", margin: "12px 0" }} />,
+    // The projected-team-score line is written as inline `code` in the markdown so it
+    // can carry its own color (accent) without colliding with bold (names) or italic.
+    code: ({ children }) => <span style={{ display: "block", color: theme.accent, fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", marginTop: 4 }}>{children}</span>,
+    img: ({ src, alt }) => (
+      <figure style={{ margin: "0 0 12px" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt || ""} style={{ width: "100%", height: "auto", maxHeight: 300, objectFit: "cover", objectPosition: "center 30%", borderRadius: 6, display: "block" }} />
+        {alt ? <figcaption style={{ fontSize: 11, color: theme.link, fontStyle: "italic", textAlign: "center", marginTop: 6, lineHeight: 1.4 }}>{alt}</figcaption> : null}
+      </figure>
+    ),
+  };
+
+  return (
+    <div style={{ background: theme.headerBg, border: `1px solid ${theme.controlBorder || theme.headerBorder}`, borderRadius: 7, overflow: "hidden" }}>
+      <div onClick={() => setCollapsed(c => !c)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15 }}>📋</span>
+          <span style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: 14, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 1 }}>Tournament Preview</span>
+        </div>
+        <span style={{ color: theme.link, fontSize: 12, transform: collapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.25s", display: "inline-block", lineHeight: 1 }}>▼</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateRows: collapsed ? "0fr" : "1fr", transition: "grid-template-rows 0.25s ease" }}>
+        <div style={{ overflow: "hidden" }}>
+          <div style={{ padding: "0 16px 14px" }}>
+            <ReactMarkdown components={mdComponents}>{body}</ReactMarkdown>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores, theme = DEFAULT_THEME }) {
@@ -1769,6 +1889,8 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
   const [espnIds, setEspnIds] = useState({});
   const [field, setField] = useState([]);
   const [showFieldDrawer, setShowFieldDrawer] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [statusState, setStatusState] = useState(null);
 
   const expandedTeams = useRef(new Set());
   const skipReorderAnim = useRef(false);
@@ -1816,6 +1938,13 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
 
   useEffect(() => { loadPicks(); }, [loadPicks]);
 
+  const loadPreview = useCallback(async () => {
+    const { data } = await supabase.from("previews").select("body").eq("tournament", tournament).eq("group_name", group).maybeSingle();
+    setPreview(data?.body || null);
+  }, [tournament, group]);
+
+  useEffect(() => { loadPreview(); }, [loadPreview]);
+
   const savePicks = async (newPicks) => {
     await supabase.from("picks").delete().eq("tournament", tournament).eq("group_name", group);
     for (const p of newPicks) {
@@ -1850,6 +1979,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
       setWorstMadeCutName(prev => prev === newWorstMadeCutName ? prev : newWorstMadeCutName);
       setAllMadeCutNineScores(prev => JSON.stringify(prev) === JSON.stringify(newAllMadeCutNineScores) ? prev : newAllMadeCutNineScores);
       setIsArchived(data.archived || false);
+      setStatusState(data.statusState || null);
       // Compute round status display
       if (data.statusState === "pre" && data.eventStartDate && data.eventEndDate) {
         const fmt = (iso) => {
@@ -2007,6 +2137,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
                 ) : roundStatus || null}
               </div>
             </div>
+            {preview && <PreviewBanner body={preview} defaultCollapsed={isArchived || (statusState != null && statusState !== "pre")} theme={theme} />}
             {rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
                 <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => { skipReorderAnim.current = true; setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; }); }} coursePar={coursePar} isArchived={isArchived} theme={theme} />

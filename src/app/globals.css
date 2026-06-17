@@ -10,3 +10,9 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Tournament preview: white, bold list numbers (text stays theme-colored) */
+.preview-ol > li::marker {
+  color: #ffffff;
+  font-weight: 700;
+}
