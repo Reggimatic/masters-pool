@@ -1295,7 +1295,7 @@ const TOURNAMENT_THEMES = {
     pageBg: "linear-gradient(#14365C, #0A1F38)",
     pageBgTop: "#14365C",
     accent: "#ACB4C0",
-    link: "#7FA8D4",
+    link: "#88B3E1",
     menuSelected: "#ACB4C0",
   },
 };
