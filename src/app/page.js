@@ -1292,11 +1292,11 @@ const TOURNAMENT_THEMES = {
   "us-open-2026": {
     headerBg: "#0C2340",
     headerBorder: "#1D4E89",
-    pageBg: "linear-gradient(#0C2340, #06182E)",
-    pageBgTop: "#0C2340",
-    accent: "#C8102E",
-    link: "#9BB8D9",
-    menuSelected: "#C8102E",
+    pageBg: "linear-gradient(#14365C, #0A1F38)",
+    pageBgTop: "#14365C",
+    accent: "#E8ECF1",
+    link: "#7FA8D4",
+    menuSelected: "#E8ECF1",
   },
 };
 
