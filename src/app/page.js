@@ -156,7 +156,7 @@ function NextUpdateTimer({ lastUpdated, onRefresh, theme = DEFAULT_THEME }) {
   return (
     <span style={{ color: theme.link, fontSize: 11 }}>
       Next update: {mins}m
-      <button onClick={onRefresh} style={{ background: "rgba(255, 255, 255, 0.12)", border: `1px solid ${theme.headerBorder}`, color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
+      <button onClick={onRefresh} style={{ background: "rgba(255, 255, 255, 0.12)", border: `1px solid ${theme.controlBorder || theme.headerBorder}`, color: "#ffffff", borderRadius: 4, padding: "3px 5px", marginLeft: 8, fontSize: 12, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><GrRefresh size={11} /></button>
     </span>
   );
 }
@@ -1292,6 +1292,7 @@ const TOURNAMENT_THEMES = {
   "us-open-2026": {
     headerBg: "#0C2340",
     headerBorder: "#be2431",
+    controlBorder: "#1D4E89",
     pageBg: "linear-gradient(#14365C, #0A1F38)",
     pageBgTop: "#14365C",
     accent: "#ACB4C0",
