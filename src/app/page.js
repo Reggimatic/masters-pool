@@ -1294,9 +1294,9 @@ const TOURNAMENT_THEMES = {
     headerBorder: "#1D4E89",
     pageBg: "linear-gradient(#14365C, #0A1F38)",
     pageBgTop: "#14365C",
-    accent: "#E8ECF1",
+    accent: "#ACB4C0",
     link: "#7FA8D4",
-    menuSelected: "#E8ECF1",
+    menuSelected: "#ACB4C0",
   },
 };
 
