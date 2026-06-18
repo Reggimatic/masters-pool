@@ -15,12 +15,12 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
   // tournament ends and the next week's event begins, the old one disappears
   // from /scoreboard. The ?dates=<year> endpoint retains finalized events for
   // the full season, which lets us archive a tournament we forgot to snapshot.
-  const stripYear = (s) => (s || "").replace(/^\d{4}\s+/, "").toLowerCase();
-  const needle = stripYear(tournamentName);
-  const matchEvent = (events) => events.find((e) => {
-    const espnName = (e.name || "").toLowerCase();
-    return espnName.includes(needle) || stripYear(e.name).includes(needle);
-  });
+  // Normalize: drop a leading year, lowercase, and strip ALL non-alphanumerics
+  // so punctuation/spacing differences can't break matching — e.g. ESPN's
+  // "U.S. Open" must match a tournament typed as "2026 US Open".
+  const needle = normalizeEventName(tournamentName);
+  const matchEvent = (events) =>
+    events.find((e) => normalizeEventName(e.name).includes(needle));
 
   const year = new Date().getFullYear();
   let event = null;
@@ -514,6 +514,13 @@ const ESPN_TO_ISO = {
   bel: "BE", ned: "NL", chi: "CL", par: "PY", brz: "BR", mex: "MX", zim: "ZW",
 };
 
+// Normalize a tournament name for ESPN matching: drop a leading 4-digit year,
+// lowercase, and remove every non-alphanumeric character. Collapsing punctuation
+// and spaces lets "2026 US Open", "US Open", and ESPN's "U.S. Open" all match.
+function normalizeEventName(s) {
+  return (s || "").replace(/^\d{4}\s+/, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function espnFlagToCode(flagHref) {
   if (!flagHref) return "";
   const match = flagHref.match(/500\/(.+)\.png/);
@@ -528,8 +535,7 @@ function espnFlagToCode(flagHref) {
  */
 export async function fetchAllCompetitors(tournamentName) {
   const year = new Date().getFullYear();
-  const stripYear = (s) => (s || "").replace(/^\d{4}\s+/, "").toLowerCase();
-  const needle = stripYear(tournamentName);
+  const needle = normalizeEventName(tournamentName);
 
   let espnReachable = false;
   let matchedEventWithoutField = false;
@@ -544,10 +550,7 @@ export async function fetchAllCompetitors(tournamentName) {
     espnReachable = true;
     const espn = await espnRes.json();
     const events = espn.events || [];
-    const event = events.find((e) => {
-      const espnName = (e.name || "").toLowerCase();
-      return espnName.includes(needle) || stripYear(e.name).includes(needle);
-    });
+    const event = events.find((e) => normalizeEventName(e.name).includes(needle));
     if (!event) continue;
     if ((event.competitions?.[0]?.competitors?.length || 0) > 0) {
       return buildCompetitorResult(event);
