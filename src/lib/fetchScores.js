@@ -104,8 +104,12 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
         const holes = roundLs.linescores || [];
         for (const h of holes) {
           if (parByHole[h.period] != null) continue;
-          const rel = parseRelativeHole(h.scoreType?.displayValue);
-          if (rel == null || h.value == null) continue;
+          // Skip "OTHER"/unrecognized labels here — without a known to-par we
+          // can't derive this hole's par, and a blow-up hole would poison it.
+          const s = String(h.scoreType?.displayValue ?? "").trim();
+          if (!(/^E$/i.test(s) || /^[+-]?\d+$/.test(s))) continue;
+          const rel = parseRelativeHole(s);
+          if (h.value == null) continue;
           parByHole[h.period] = h.value - rel;
         }
       }
@@ -325,11 +329,11 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
         const front9 = holes.slice(0, 9);
         const back9 = holes.slice(9, 18);
         if (front9.length === 9) {
-          cum += front9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+          cum += front9.reduce((sum, h) => sum + holeRelative(h, coursePar), 0);
           scores.push(cum);
         } else break;
         if (back9.length === 9) {
-          cum += back9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+          cum += back9.reduce((sum, h) => sum + holeRelative(h, coursePar), 0);
           scores.push(cum);
         } else break;
       }
@@ -407,7 +411,7 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
       // Extract hole-by-hole data for this round
       const sorted = [...holes].sort((a, b) => a.period - b.period);
       const roundHoles = sorted.map((h) => {
-        const rel = parseRelativeHole(h.scoreType?.displayValue);
+        const rel = holeRelative(h, coursePar);
         return { hole: h.period, strokes: h.value, toPar: rel, par: h.value - rel };
       });
       const front9Holes = roundHoles.filter((h) => h.hole <= 9);
@@ -426,7 +430,7 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
       const back9 = holes.slice(9, 18);
 
       if (front9.length === 9) {
-        const front9Rel = front9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+        const front9Rel = front9.reduce((sum, h) => sum + holeRelative(h, coursePar), 0);
         cumulative += front9Rel;
         nineScores.push({ label: `R${r}-Out`, cumulative, holes: 9 });
       } else if (front9.length > 0) {
@@ -436,7 +440,7 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
       }
 
       if (back9.length === 9) {
-        const back9Rel = back9.reduce((sum, h) => sum + parseRelativeHole(h.scoreType?.displayValue), 0);
+        const back9Rel = back9.reduce((sum, h) => sum + holeRelative(h, coursePar), 0);
         cumulative += back9Rel;
         nineScores.push({ label: `R${r}-Tot`, cumulative, holes: 18 });
       } else {
@@ -590,6 +594,20 @@ function parseRelativeHole(displayValue) {
   if (s === "E") return 0;
   const n = parseInt(s, 10);
   return isNaN(n) ? 0 : n;
+}
+
+// A single hole's score relative to par. ESPN labels extreme holes (e.g. an 11)
+// as "OTHER", which has no numeric to-par — parseRelativeHole would read that as
+// 0 and silently drop the blow-up. When the label isn't a recognized number/"E",
+// derive to-par from strokes minus the authoritative course par instead.
+function holeRelative(hole, coursePar) {
+  const s = String(hole?.scoreType?.displayValue ?? "").trim();
+  const recognized = /^E$/i.test(s) || /^[+-]?\d+$/.test(s);
+  if (!recognized) {
+    const par = coursePar?.[hole?.period - 1];
+    if (hole?.value != null && par != null) return hole.value - par;
+  }
+  return parseRelativeHole(s);
 }
 
 function parseScore(scoreStr) {
