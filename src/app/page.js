@@ -465,7 +465,7 @@ function TeamCard({ team, rank, potView = "overall", cutHappened, worstMadeCut, 
 
   const isSol = isWeekend && scoringGolfers.length < 2;
   const total = scoringGolfers.reduce((sum, g) => sum + (g.relative ?? 0), 0) + penaltySlots * (worstMadeCut ?? 0);
-  const totalLabel = isSol ? "SOL" : total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
+  const totalLabel = isSol ? "DNQ" : total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
   const totalColor = isSol ? "#8B8885" : total < 0 ? "#BA0C2F" : "#2E7450";
   const formatScore = (s) => s === null || s === undefined ? "" : s === 0 ? "E" : s > 0 ? `+${s}` : `${s}`;
   const previewItems = scoringGolfers.map((g, i) => {
@@ -1130,7 +1130,7 @@ function AdminPanel({ picks, tournament, group, tournamentName, groupName, allGr
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                     {t.logo_url
-                      ? <img src={t.logo_url} alt="" style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0, background: "rgba(255,255,255,0.06)", borderRadius: 3 }} />
+                      ? <img src={t.logo_url} alt="" style={{ height: 20, width: "auto", maxWidth: 60, objectFit: "contain", flexShrink: 0, background: "rgba(255,255,255,0.06)", borderRadius: 3 }} />
                       : <div style={{ width: 22, height: 22, flexShrink: 0, border: "1px dashed rgba(233,255,194,0.25)", borderRadius: 3 }} />}
                     <input
                       defaultValue={t.logo_url || ""}
@@ -1356,7 +1356,22 @@ const DEFAULT_THEME = {
   menuSelected: "#FCE300",
 };
 
+// Open Championship (navy + yellow). Shared by the Scottish test tournament
+// (styling stand-in) and the real Open Championship row once it's created.
+const OPEN_CHAMPIONSHIP_THEME = {
+  headerBg: "#041E42",
+  headerBorder: "#1D4E89",
+  controlBorder: "#1D4E89",
+  pageBg: "linear-gradient(#0A2E5C, #041E42)",
+  pageBgTop: "#0A2E5C",
+  accent: "#f7cc02",
+  link: "#86B9EC",
+  menuSelected: "#f7cc02",
+};
+
 const TOURNAMENT_THEMES = {
+  "scottish-open-2026-test": OPEN_CHAMPIONSHIP_THEME,
+  "open-championship-2026": OPEN_CHAMPIONSHIP_THEME,
   "pga-championship-2026": {
     headerBg: "#001529",
     headerBorder: "#146dc1",
@@ -1746,7 +1761,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
               <img
                 src={tournamentLogo}
                 alt=""
-                style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0, marginRight: 5 }}
+                style={{ height: 34, width: "auto", maxWidth: 150, objectFit: "contain", flexShrink: 0, marginRight: 7 }}
               />
             )}
             <div style={{ minWidth: 0 }}>
@@ -1798,7 +1813,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {formatName(p.name)}
                       {drafted && (
-                        <span style={{ color: theme.link, fontSize: 11, marginLeft: 4 }}>
+                        <span style={{ color: theme.accent, fontSize: 11, marginLeft: 4 }}>
                           ({owners.join(", ")})
                         </span>
                       )}
@@ -2111,23 +2126,28 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
           <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color={theme.accent} align="left" caretSide="left" theme={theme} />
           <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} align="right" caretSide="right" theme={theme} />
         </div>
-        <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
-        {field.length > 0 && !isArchived && (
-          <button
-            onClick={() => setShowFieldDrawer(true)}
-            title="View full field"
-            style={{ position: "absolute", right: 15, top: "63%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "rgba(255, 255, 255, 0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" />
-              <line x1="3" y1="18" x2="3.01" y2="18" />
-            </svg>
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: field.length > 0 && !isArchived ? "space-between" : "center", gap: 10, margin: "0 0 4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, fontSize: "clamp(28px, 6vw, 48px)" }}>
+            {tournamentLogo && <img src={tournamentLogo} alt="" style={{ height: "0.8em", width: "auto", flexShrink: 0 }} />}
+            <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "1em", color: "#ffffff", margin: 0, fontWeight: 300, letterSpacing: 2, textTransform: "uppercase", whiteSpace: "nowrap" }}>Leader Board</h1>
+          </div>
+          {field.length > 0 && !isArchived && (
+            <button
+              onClick={() => setShowFieldDrawer(true)}
+              title="View full field"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "rgba(255, 255, 255, 0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
