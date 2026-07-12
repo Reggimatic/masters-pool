@@ -1,4 +1,4 @@
-import { Open_Sans, Source_Serif_4 } from "next/font/google";
+import { Open_Sans, Source_Serif_4, Oswald } from "next/font/google";
 import "./globals.css";
 
 const openSans = Open_Sans({
@@ -8,6 +8,13 @@ const openSans = Open_Sans({
 
 const sourceSerif = Source_Serif_4({
   variable: "--font-source-serif",
+  subsets: ["latin"],
+});
+
+// Condensed face for the tournament | group selector line so the pair fits on
+// one row on mobile.
+const oswald = Oswald({
+  variable: "--font-oswald",
   subsets: ["latin"],
 });
 
@@ -38,7 +45,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${openSans.variable} ${sourceSerif.variable} antialiased`} style={{ fontFamily: "var(--font-open-sans), sans-serif" }}>
+      <body suppressHydrationWarning className={`${openSans.variable} ${sourceSerif.variable} ${oswald.variable} antialiased`} style={{ fontFamily: "var(--font-open-sans), sans-serif" }}>
         {children}
         <script
           dangerouslySetInnerHTML={{

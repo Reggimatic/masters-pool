@@ -1438,76 +1438,90 @@ function PreviewBanner({ body, defaultCollapsed = false, theme = DEFAULT_THEME }
   );
 }
 
-function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores, theme = DEFAULT_THEME }) {
-  const ALL_LABELS = ["R1-Out", "R1-Tot", "R2-Out", "R2-Tot", "R3-Out", "R3-Tot", "R4-Out", "R4-Tot"];
+function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMadeCutNineScores, weekend = false, theme = DEFAULT_THEME }) {
+  // Checkpoint layout differs by pot. Overall spans all 4 rounds (8 half-round
+  // checkpoints). Weekend plots only R3-R4, resets everyone to even Saturday,
+  // and counts the best 2 cut-makers (no penalty; SOL teams are dropped).
+  const CHECKPOINTS = weekend
+    ? [{ idx: 4, x: 1 }, { idx: 5, x: 2 }, { idx: 6, x: 3 }, { idx: 7, x: 4 }]
+    : [{ idx: 0, x: 1 }, { idx: 1, x: 2 }, { idx: 2, x: 3 }, { idx: 3, x: 4 }, { idx: 4, x: 5 }, { idx: 5, x: 6 }, { idx: 6, x: 7 }, { idx: 7, x: 8 }];
+  const COUNT = weekend ? 2 : 4;
+  const DOMAIN_MAX = weekend ? 4 : 8;
+  const ROUND_TICKS = weekend ? [0, 2, 4] : [0, 2, 4, 6, 8];
+  const ROUND_LABELS = weekend ? { 0: "Start", 2: "R3", 4: "Final" } : { 0: "Start", 2: "R1", 4: "R2", 6: "R3", 8: "Final" };
+  const TOOLTIP_LABELS = weekend
+    ? { 1: "R3 Front", 2: "R3", 3: "R4 Front", 4: "Final" }
+    : { 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "Final" };
 
-  // Determine the maximum number of 9-hole checkpoints any golfer has completed
-  const allNineScores = teams.flatMap(t => t.golfers.map(g => {
-    const name = g.name || g;
-    return liveScores[name]?.nineScores || [];
-  }));
-  const maxCheckpoints = Math.max(...allNineScores.map(s => s.length), 0);
+  // Weekend drops SOL teams (fewer than 2 cut-makers) from the chart entirely.
+  const teamsToPlot = weekend ? teams.filter(t => t.weekendTotal != null) : teams;
 
-  // Show the chart as soon as any golfer in the pool has played at least one hole.
-  const anyHolesPlayed = teams.some(t => t.golfers.some(g => {
+  // A golfer's cumulative to-par at a checkpoint. Weekend subtracts the
+  // through-R2 total (so Saturday starts at even) and ignores missed-cut players.
+  const cumAt = (name, idx) => {
+    const scores = liveScores[name]?.nineScores || [];
+    const raw = scores[idx]?.cumulative;
+    if (raw == null) return null;
+    if (!weekend) return raw;
+    if (liveScores[name]?.missedCut) return null;
+    return raw - (scores[3]?.cumulative ?? 0);
+  };
+
+  // Show the chart as soon as any (relevant) golfer has played a hole.
+  const anyHolesPlayed = teamsToPlot.some(t => t.golfers.some(g => {
     const name = g.name || g;
     const hs = liveScores[name]?.holeScores || [];
-    return hs.some(r => r.holes && r.holes.length > 0);
+    return hs.some(r => r.holes && r.holes.length > 0 && (!weekend || r.round >= 3));
   }));
   if (!anyHolesPlayed) return null;
 
-  // A checkpoint is "locked in" only when ALL golfers have completed it.
+  // A checkpoint is "locked in" only when every relevant golfer has completed it.
   // The LIVE point always reflects the current team card totals.
-  const allGolferNames = [...new Set(teams.flatMap(t => t.golfers.map(g => g.name || g)))];
-  let plottableCheckpoints = 0;
-  for (let i = 0; i < maxCheckpoints; i++) {
-    const isPostCut = i >= 4 && cutHappened;
+  const allGolferNames = [...new Set(teamsToPlot.flatMap(t => t.golfers.map(g => g.name || g)))];
+  let plottableCount = 0;
+  for (let c = 0; c < CHECKPOINTS.length; c++) {
+    const { idx } = CHECKPOINTS[c];
+    const isPostCut = idx >= 4 && cutHappened;
     const allComplete = allGolferNames.every(name => {
       const missedCut = liveScores[name]?.missedCut ?? false;
       const withdrawn = liveScores[name]?.withdrawn ?? false;
       if (withdrawn) return true;
-      if (isPostCut && missedCut) return true;
+      if ((isPostCut || weekend) && missedCut) return true;
       const scores = liveScores[name]?.nineScores || [];
-      return scores.length > i;
+      return scores.length > idx;
     });
-    if (allComplete) plottableCheckpoints = i + 1;
+    if (allComplete) plottableCount = c + 1;
     else break;
   }
 
-  // Numeric x positions: Start=0, R1-Out=1, R1-Tot=2, R2-Out=3, R2-Tot=4, R3-Out=5, R3-Tot=6, R4-Out=7, R4-Tot=8
-  const CHECKPOINT_X = [1, 2, 3, 4, 5, 6, 7, 8];
-  const ROUND_TICKS = [0, 2, 4, 6, 8]; // Start, R1, R2, R3, R4
-  const ROUND_LABELS = { 0: "Start", 2: "R1", 4: "R2", 6: "R3", 8: "Final" };
-
   // Start with everyone at E
   const chartData = [{ x: 0 }];
-  teams.forEach(team => { chartData[0][team.name] = 0; });
+  teamsToPlot.forEach(team => { chartData[0][team.name] = 0; });
 
   // Build data for each plottable checkpoint
-  for (let i = 0; i < plottableCheckpoints; i++) {
-    const point = { x: CHECKPOINT_X[i] };
+  for (let c = 0; c < plottableCount; c++) {
+    const { idx, x } = CHECKPOINTS[c];
+    const point = { x };
 
-    teams.forEach(team => {
+    teamsToPlot.forEach(team => {
       const golferScores = team.golfers.map(g => {
         const name = g.name || g;
-        const scores = liveScores[name]?.nineScores || [];
-        const missedCut = liveScores[name]?.missedCut ?? false;
-        return { name, score: scores[i]?.cumulative ?? null, missedCut };
+        return { name, score: cumAt(name, idx), missedCut: liveScores[name]?.missedCut ?? false };
       });
 
-      const isCutCheckpoint = i >= 4 && cutHappened;
-      const eligible = isCutCheckpoint ? golferScores.filter(g => !g.missedCut) : golferScores.filter(g => !liveScores[g.name]?.withdrawn);
+      const isCutCheckpoint = idx >= 4 && cutHappened;
+      const eligible = (weekend || isCutCheckpoint) ? golferScores.filter(g => !g.missedCut) : golferScores.filter(g => !liveScores[g.name]?.withdrawn);
       const withScores = eligible.filter(g => g.score !== null);
       const sorted = [...withScores].sort((a, b) => a.score - b.score);
-      const scoring = sorted.slice(0, 4);
+      const scoring = sorted.slice(0, COUNT);
 
       if (scoring.length === 0) return;
 
       let total = scoring.reduce((sum, g) => sum + g.score, 0);
-      if (isCutCheckpoint) {
-        const penaltySlots = Math.max(0, 4 - scoring.length);
+      if (!weekend && isCutCheckpoint) {
+        const penaltySlots = Math.max(0, COUNT - scoring.length);
         const worstAtCheckpoint = allMadeCutNineScores.reduce((max, scores) => {
-          const val = scores[i];
+          const val = scores[idx];
           return val !== undefined && val > max ? val : max;
         }, -Infinity);
         const penalty = worstAtCheckpoint > -Infinity ? worstAtCheckpoint : (worstMadeCut ?? 0);
@@ -1518,24 +1532,24 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     chartData.push(point);
   }
 
-  // Add "LIVE" point — always shown unless tournament is complete (all 8 checkpoints locked).
+  // Add "LIVE" point — shown unless the pot is complete (all its checkpoints locked).
   // Positioned halfway between the last locked checkpoint and the next one.
-  // Uses team.total which matches exactly what the team cards display.
-  const isComplete = plottableCheckpoints >= 8;
+  // Uses the team card totals (weekendTotal in Weekend mode) so it matches the cards.
+  const isComplete = plottableCount >= CHECKPOINTS.length;
   let liveX = null;
   if (!isComplete) {
-    const lastX = plottableCheckpoints > 0 ? CHECKPOINT_X[plottableCheckpoints - 1] : 0;
-    const nextX = CHECKPOINT_X[plottableCheckpoints] ?? lastX + 1;
+    const lastX = plottableCount > 0 ? CHECKPOINTS[plottableCount - 1].x : 0;
+    const nextX = CHECKPOINTS[plottableCount]?.x ?? lastX + 1;
     liveX = (lastX + nextX) / 2;
     const nowPoint = { x: liveX };
-    teams.forEach(team => { nowPoint[team.name] = team.total; });
+    teamsToPlot.forEach(team => { nowPoint[team.name] = weekend ? team.weekendTotal : team.total; });
     chartData.push(nowPoint);
   }
 
   // Sort by x so recharts plots in order
   chartData.sort((a, b) => a.x - b.x);
 
-  const teamNames = teams.map(t => t.name);
+  const teamNames = teamsToPlot.map(t => t.name);
 
   // Precompute which (x, value) coordinates have multiple teams stacked on them.
   // These get rendered as white dots so the viewer can see that a single visible
@@ -1564,7 +1578,7 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
     <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "16px 8px 8px", marginBottom: 12 }}>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 18, right: 20, left: 5, bottom: 5 }}>
-          <XAxis dataKey="x" type="number" domain={[0, 8]} ticks={ROUND_TICKS} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
+          <XAxis dataKey="x" type="number" domain={[0, DOMAIN_MAX]} ticks={ROUND_TICKS} interval={0} allowDataOverflow tick={({ x, y, payload }) => {
             const label = ROUND_LABELS[payload.value];
             if (!label) return null;
             return (
@@ -1578,21 +1592,17 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
             contentStyle={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12 }}
             labelStyle={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}
             formatter={(value, name) => [formatScore(value), name]}
-            labelFormatter={(val) => {
-              const ALL_TOOLTIP_LABELS = { 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "Final" };
-              return ALL_TOOLTIP_LABELS[val] || "";
-            }}
+            labelFormatter={(val) => TOOLTIP_LABELS[val] || ""}
             itemSorter={(item) => item.value}
             content={({ active, payload, label }) => {
               // Show tooltip on locked checkpoints and LIVE point
-              const lockedXValues = CHECKPOINT_X.slice(0, plottableCheckpoints);
+              const lockedXValues = CHECKPOINTS.slice(0, plottableCount).map(c => c.x);
               const validXValues = [...lockedXValues, ...(liveX !== null ? [liveX] : [])];
               if (!active || !payload || !validXValues.includes(label)) return null;
-              const ALL_TOOLTIP_LABELS = { 1: "R1 Front", 2: "R1", 3: "R2 Front", 4: "R2", 5: "R3 Front", 6: "R3", 7: "R4 Front", 8: "Final" };
               const sorted = [...payload].filter(p => p.value != null).sort((a, b) => a.value - b.value);
               return (
                 <div style={{ background: "#ffffff", border: "1px solid #D8D8D8", borderRadius: 8, fontSize: 12, padding: "8px 12px" }}>
-                  <div style={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}>{label === liveX ? "LIVE" : ALL_TOOLTIP_LABELS[label] || ""}</div>
+                  <div style={{ color: "#143625", marginBottom: 4, fontWeight: 700 }}>{label === liveX ? "LIVE" : TOOLTIP_LABELS[label] || ""}</div>
                   {sorted.map((entry, i) => (
                     <div key={i} style={{ color: entry.color, padding: "1px 0" }}>
                       {formatScore(entry.value)} — {entry.name}
@@ -1843,7 +1853,7 @@ function FieldDrawer({ open, onClose, field, golferToOwners, tournamentName, tou
 
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
-function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left", theme = DEFAULT_THEME }) {
+function InlineDropdown({ label, items, currentId, onSelect, color, style, align = "left", caretSide = "left", theme = DEFAULT_THEME }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -1857,15 +1867,17 @@ function InlineDropdown({ label, items, currentId, onSelect, color, style, align
   return (
     <span ref={ref} style={{ position: "relative", display: "inline-block", ...style }}>
       <button onClick={() => setOpen(!open)} style={{ background: "none", border: "none", color, padding: 0, cursor: "pointer", font: "inherit", fontSize: "inherit", fontFamily: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}>
-        <span style={{ fontSize: "0.75em", marginRight: 4, opacity: 0.7 }}>▾</span>{label}
+        {caretSide === "right"
+          ? <>{label}<span style={{ fontSize: "0.75em", marginLeft: 4, opacity: 0.7, position: "relative", top: -3 }}>▾</span></>
+          : <><span style={{ fontSize: "0.75em", marginRight: 4, opacity: 0.7, position: "relative", top: -3 }}>▾</span>{label}</>}
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "100%", ...(align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 }), marginTop: 6, background: theme.pageBgTop, border: `1px solid ${theme.headerBorder}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, minWidth: 180, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "100%", ...(align === "center" ? { left: "50%", transform: "translateX(-50%)" } : align === "right" ? { right: 0 } : { left: 0 }), marginTop: 6, background: theme.pageBgTop, border: `1px solid ${theme.headerBorder}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, minWidth: 180, overflow: "hidden" }}>
           {items.map(item => (
             <div
               key={item.id}
               onClick={() => { onSelect(item.id); setOpen(false); }}
-              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? theme.menuSelected : "#ffffff", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.15)", whiteSpace: "nowrap" }}
+              style={{ padding: "10px 16px", fontSize: 13, color: item.id === currentId ? theme.menuSelected : "#ffffff", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.15)", whiteSpace: "nowrap", textAlign: align === "right" ? "right" : "left" }}
               onMouseEnter={e => { if (item.id !== currentId) e.target.style.background = "rgba(255,255,255,0.05)"; }}
               onMouseLeave={e => { e.target.style.background = "transparent"; }}
             >
@@ -2094,16 +2106,17 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
 
   return (
     <div style={{ minHeight: "100vh", background: theme.pageBg, color: "#e8dfc4" }}>
-      <div style={{ padding: "16px 18px 12px", textAlign: "center", background: theme.headerBg, borderBottom: `1px solid ${theme.headerBorder}`, position: "relative" }}>
-        <div style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, color: theme.accent, letterSpacing: 3, textTransform: "uppercase", marginBottom: 2 }}>
-          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color={theme.accent} align="center" theme={theme} />
+      <div style={{ padding: "16px 15px 12px", textAlign: "center", background: theme.headerBg, borderBottom: `1px solid ${theme.headerBorder}`, position: "relative" }}>
+        <div style={{ fontSize: 14, fontFamily: "var(--font-oswald), sans-serif", fontWeight: 300, color: theme.accent, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2, paddingBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <InlineDropdown label={tournamentName} items={allTournaments} currentId={tournament} onSelect={(id) => onSwitch(id, group)} color={theme.accent} align="left" caretSide="left" theme={theme} />
+          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} align="right" caretSide="right" theme={theme} />
         </div>
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "clamp(36px, 6vw, 48px)", color: "#ffffff", margin: "0 0 4px", fontWeight: 300, letterSpacing: 2, textTransform: "uppercase" }}>Leader Board</h1>
         {field.length > 0 && !isArchived && (
           <button
             onClick={() => setShowFieldDrawer(true)}
             title="View full field"
-            style={{ position: "absolute", right: 7, top: "59%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "rgba(255, 255, 255, 0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+            style={{ position: "absolute", right: 15, top: "63%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, width: 30, height: 30, color: "rgba(255, 255, 255, 0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="8" y1="6" x2="21" y2="6" />
@@ -2118,17 +2131,6 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "18px 16px 48px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} style={{ fontSize: 13, fontFamily: "var(--font-source-serif), Georgia, serif", fontWeight: 300, textTransform: "uppercase", letterSpacing: 3 }} theme={theme} />
-          {picks.length > 0 && (
-            <div onClick={() => setShowChart(!showChart)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
-              <span style={{ fontSize: 13, color: theme.link, letterSpacing: 0.5 }}>Tournament Flow</span>
-              <div style={{ width: 32, height: 18, borderRadius: 9, background: showChart ? theme.link : "rgba(255, 255, 255, 0.25)", position: "relative", transition: "background 0.2s" }}>
-                <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: showChart ? 16 : 2, transition: "left 0.2s" }} />
-              </div>
-            </div>
-          )}
-        </div>
         {error && <div style={{ background: "rgba(224,82,82,0.1)", border: "1px solid #e05252", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 13, color: "#e05252" }}>{error}</div>}
 
         {picks.length === 0 ? (
@@ -2138,7 +2140,27 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {showChart && potMode === "overall" && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} theme={theme} />}
+            {/* Controls: Overall/Weekend toggle (left) + chart toggle (right), one line above the chart */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 28 }}>
+              {!isArchived ? (
+                <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: 2, gap: 2 }}>
+                  {["overall", "weekend"].map(v => (
+                    <button key={v} onClick={() => setPotView(v)} style={{ border: "none", cursor: "pointer", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", background: potMode === v ? theme.accent : "transparent", color: potMode === v ? (theme.headerBg || "#0d1f14") : "#fff", transition: "background 0.15s" }}>
+                      {v === "overall" ? "Overall" : "Weekend"}
+                    </button>
+                  ))}
+                </div>
+              ) : <span />}
+              {picks.length > 0 && (
+                <div onClick={() => setShowChart(!showChart)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, color: theme.link, letterSpacing: 0.5 }}>Tournament Flow</span>
+                  <div style={{ width: 32, height: 18, borderRadius: 9, background: showChart ? theme.link : "rgba(255, 255, 255, 0.25)", position: "relative", transition: "background 0.2s" }}>
+                    <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: showChart ? 16 : 2, transition: "left 0.2s" }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} weekend={potMode === "weekend"} theme={theme} />}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
               <div style={{ color: theme.link, position: "relative" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
@@ -2169,23 +2191,6 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
               </div>
             </div>
             {preview && <PreviewBanner body={preview} defaultCollapsed={isArchived || (statusState != null && statusState !== "pre")} theme={theme} />}
-            {/* Overall / Weekend pot toggle (live tournaments only) */}
-            {!isArchived && (
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: potMode === "weekend" ? 4 : 8 }}>
-                <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: 3, gap: 2 }}>
-                  {["overall", "weekend"].map(v => (
-                    <button key={v} onClick={() => setPotView(v)} style={{ border: "none", cursor: "pointer", borderRadius: 6, padding: "6px 18px", fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", background: potMode === v ? theme.accent : "transparent", color: potMode === v ? (theme.headerBg || "#0d1f14") : "#fff", transition: "background 0.15s" }}>
-                      {v === "overall" ? "Overall" : "Weekend"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {potMode === "weekend" && (
-              <div style={{ textAlign: "center", fontSize: 11, color: theme.link, marginBottom: 6, letterSpacing: 0.5 }}>
-                Rounds 3–4 · best 2 golfers · everyone starts even Saturday
-              </div>
-            )}
             {potMode === "weekend" && !cutHappened ? (
               <div style={{ textAlign: "center", padding: "48px 20px", color: "#fff" }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>⛳</div>

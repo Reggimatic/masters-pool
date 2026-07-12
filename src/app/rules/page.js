@@ -37,6 +37,14 @@ function RulesContent() {
           <li>If multiple golfers finish regulation tied for the lead, any extra holes played do not count toward pool scoring, regardless of the playoff format.</li>
         </ul>
 
+        <h2 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: 20, color: "#ffffff", fontWeight: 400, textTransform: "uppercase", marginTop: 28, marginBottom: 12 }}>Weekend Pot</h2>
+        <ul style={{ listStyle: "disc", paddingLeft: 20, fontSize: 15, lineHeight: 2, color: "#e9ffc2" }}>
+          <li>A separate side pot for the weekend rounds only. Everyone starts even on Saturday — the first two rounds don't carry over.</li>
+          <li>Only rounds 3 and 4 count, and only your best 2 golfers who made the cut.</li>
+          <li>A team with fewer than 2 golfers still in the tournament isn't eligible for the Weekend Pot.</li>
+          <li>The main pot is unaffected — the Weekend Pot is scored and paid out on its own.</li>
+        </ul>
+
         <div style={{ marginTop: 32, textAlign: "center" }}>
           <a href={back} style={{ color: "#5BD397", fontSize: 13, textDecoration: "underline" }}>Back to Leader Board</a>
         </div>
