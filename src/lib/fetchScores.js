@@ -177,6 +177,26 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
     return hasAny ? total : null;
   };
 
+  // R3+R4 total — the "Weekend" pot score. Null when the player has no
+  // weekend rounds yet (missed the cut, or the weekend hasn't started).
+  // Counts a partial round in progress, same as regulation scoring.
+  const getWeekendScore = (c) => {
+    const ls = c.linescores || [];
+    let total = 0;
+    let hasAny = false;
+    for (let r = 3; r <= 4; r++) {
+      const rs = ls.find((l) => l.period === r);
+      if (rs?.displayValue != null && rs.displayValue !== "") {
+        const val = parseScore(String(rs.displayValue));
+        if (val !== null) {
+          total += val;
+          hasAny = true;
+        }
+      }
+    }
+    return hasAny ? total : null;
+  };
+
   // Fetch manual withdrawals and tournament config from Supabase
   const [{ data: withdrawalData }, { data: tournamentRow }] = await Promise.all([
     supabase.from("withdrawals").select("golfer_name").eq("tournament", tournamentId),
@@ -382,6 +402,7 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
 
     const { competitor: c } = match;
     const relative = getRegulationScore(c);
+    const weekendScore = getWeekendScore(c);
 
     // Compute "today" from the current round's linescore only
     const linescores = c.linescores || [];
@@ -463,7 +484,7 @@ export async function computeScores(golferNames, tournamentName, tournamentId) {
       else if (currentPos > prevPos) positionChange = "down";
     }
 
-    golfers[name] = { relative, today, thru, position, positionChange, missedCut, withdrawn, nineScores, holeScores };
+    golfers[name] = { relative, weekendScore, today, thru, position, positionChange, missedCut, withdrawn, nineScores, holeScores };
   }
 
   // Build the full field list for the drawer view — every competitor in the event,

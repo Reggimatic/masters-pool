@@ -416,7 +416,7 @@ function Scorecard({ holeScores, coursePar, golferName, espnId, country, visible
   );
 }
 
-function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor, expandedGolfers, onGolferToggle, coursePar, isArchived, theme = DEFAULT_THEME }) {
+function TeamCard({ team, rank, potView = "overall", cutHappened, worstMadeCut, expanded, onToggle, avatarUrl, chartColor, expandedGolfers, onGolferToggle, coursePar, isArchived, theme = DEFAULT_THEME }) {
   // Prefetch golfer bios + headshots when the team card expands,
   // so the per-golfer profile pops in smoothly.
   useEffect(() => {
@@ -424,13 +424,25 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
     team.golfers.forEach(g => { if (g.espnId) prefetchGolferBio(g.espnId); });
   }, [expanded, team.golfers]);
 
-  const madeCut = team.golfers.filter(g => !g.missedCut);
-  const missedCut = team.golfers.filter(g => g.missedCut);
+  const isWeekend = potView === "weekend";
+  // In Weekend mode each golfer's displayed score is their R3+R4 total, so the
+  // existing rows/scorecard (which read g.relative) just work.
+  const viewGolfers = isWeekend
+    ? team.golfers.map(g => ({ ...g, relative: g.weekendScore }))
+    : team.golfers;
+  const madeCut = viewGolfers.filter(g => !g.missedCut);
+  const missedCut = viewGolfers.filter(g => g.missedCut);
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
 
-  if (!cutHappened) {
-    const eligible = team.golfers.filter(g => !g.withdrawn);
-    const withdrawn = team.golfers.filter(g => g.withdrawn);
+  if (isWeekend) {
+    // Best 2 cut-makers by weekend score; no penalty slots (fewer than 2 = SOL).
+    const eligible = madeCut.filter(g => g.relative != null && !g.withdrawn);
+    const sorted = [...eligible].sort((a, b) => a.relative - b.relative);
+    scoringGolfers = sorted.slice(0, 2);
+    droppedGolfers = [...sorted.slice(2), ...madeCut.filter(g => g.relative == null || g.withdrawn), ...missedCut];
+  } else if (!cutHappened) {
+    const eligible = viewGolfers.filter(g => !g.withdrawn);
+    const withdrawn = viewGolfers.filter(g => g.withdrawn);
     const sorted = [...eligible].sort((a, b) => {
       if (a.relative === null && b.relative === null) return 0;
       if (a.relative === null) return 1;
@@ -451,9 +463,10 @@ function TeamCard({ team, rank, cutHappened, worstMadeCut, expanded, onToggle, a
     droppedGolfers = [...sortedMadeCut.slice(4), ...missedCut];
   }
 
+  const isSol = isWeekend && scoringGolfers.length < 2;
   const total = scoringGolfers.reduce((sum, g) => sum + (g.relative ?? 0), 0) + penaltySlots * (worstMadeCut ?? 0);
-  const totalLabel = total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
-  const totalColor = total < 0 ? "#BA0C2F" : "#2E7450";
+  const totalLabel = isSol ? "SOL" : total === 0 ? "E" : total > 0 ? `+${total}` : `${total}`;
+  const totalColor = isSol ? "#8B8885" : total < 0 ? "#BA0C2F" : "#2E7450";
   const formatScore = (s) => s === null || s === undefined ? "" : s === 0 ? "E" : s > 0 ? `+${s}` : `${s}`;
   const previewItems = scoringGolfers.map((g, i) => {
     const lastName = g.name.split(" ").pop();
@@ -1877,6 +1890,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showChart, setShowChart] = useState(true);
+  const [potView, setPotView] = useState("overall"); // "overall" | "weekend"
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState(null);
@@ -2013,10 +2027,13 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
     }
   }, [picks, fetchScores, isArchived]);
 
+  // Weekend pot is data-dependent on weekendScore, which archived snapshots
+  // predate — so it's only offered on live tournaments.
+  const potMode = isArchived ? "overall" : potView;
   const rankedTeams = picks.map(team => {
     const withScores = team.golfers.map(g => {
       const name = g.name || g;
-      return { name, country: g.country || "", espnId: espnIds[name] || null, relative: liveScores[name]?.relative ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false, holeScores: liveScores[name]?.holeScores || [] };
+      return { name, country: g.country || "", espnId: espnIds[name] || null, relative: liveScores[name]?.relative ?? null, weekendScore: liveScores[name]?.weekendScore ?? null, today: liveScores[name]?.today ?? null, thru: liveScores[name]?.thru ?? null, position: liveScores[name]?.position ?? null, positionChange: liveScores[name]?.positionChange ?? null, missedCut: liveScores[name]?.missedCut ?? false, withdrawn: liveScores[name]?.withdrawn ?? false, holeScores: liveScores[name]?.holeScores || [] };
     });
     let total = 0;
     if (!cutHappened) {
@@ -2029,8 +2046,22 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
       const scoring = sorted.slice(0, 4);
       total = scoring.reduce((sum, g) => sum + (g.relative ?? 0), 0) + Math.max(0, 4 - scoring.length) * (worstMadeCut ?? 0);
     }
-    return { ...team, golfers: withScores, total };
-  }).sort((a, b) => a.total - b.total);
+    // Weekend pot: best 2 cut-makers by R3+R4. Fewer than 2 → SOL (null).
+    const weekendEligible = withScores
+      .filter(g => !g.missedCut && !g.withdrawn && g.weekendScore != null)
+      .sort((a, b) => a.weekendScore - b.weekendScore);
+    const weekendBest2 = weekendEligible.slice(0, 2);
+    const weekendTotal = weekendBest2.length >= 2 ? weekendBest2.reduce((s, g) => s + g.weekendScore, 0) : null;
+    return { ...team, golfers: withScores, total, weekendTotal };
+  }).sort((a, b) => {
+    if (potMode === "weekend") {
+      if (a.weekendTotal == null && b.weekendTotal == null) return 0;
+      if (a.weekendTotal == null) return 1; // SOL teams sink to the bottom
+      if (b.weekendTotal == null) return -1;
+      return a.weekendTotal - b.weekendTotal;
+    }
+    return a.total - b.total;
+  });
 
   // Build lookup from golfer name → array of pool owners who drafted them
   const golferToOwners = {};
@@ -2107,7 +2138,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {showChart && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} theme={theme} />}
+            {showChart && potMode === "overall" && <ScoreTrendChart teams={rankedTeams} liveScores={liveScores} cutHappened={cutHappened} worstMadeCut={worstMadeCut} allMadeCutNineScores={allMadeCutNineScores} theme={theme} />}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
               <div style={{ color: theme.link, position: "relative" }}>
                 {cutHappened && worstMadeCut !== null && worstMadeCutName && (
@@ -2138,9 +2169,32 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
               </div>
             </div>
             {preview && <PreviewBanner body={preview} defaultCollapsed={isArchived || (statusState != null && statusState !== "pre")} theme={theme} />}
-            {rankedTeams.map((team, i) => (
+            {/* Overall / Weekend pot toggle (live tournaments only) */}
+            {!isArchived && (
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: potMode === "weekend" ? 4 : 8 }}>
+                <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: 3, gap: 2 }}>
+                  {["overall", "weekend"].map(v => (
+                    <button key={v} onClick={() => setPotView(v)} style={{ border: "none", cursor: "pointer", borderRadius: 6, padding: "6px 18px", fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", background: potMode === v ? theme.accent : "transparent", color: potMode === v ? (theme.headerBg || "#0d1f14") : "#fff", transition: "background 0.15s" }}>
+                      {v === "overall" ? "Overall" : "Weekend"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {potMode === "weekend" && (
+              <div style={{ textAlign: "center", fontSize: 11, color: theme.link, marginBottom: 6, letterSpacing: 0.5 }}>
+                Rounds 3–4 · best 2 golfers · everyone starts even Saturday
+              </div>
+            )}
+            {potMode === "weekend" && !cutHappened ? (
+              <div style={{ textAlign: "center", padding: "48px 20px", color: "#fff" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>⛳</div>
+                <p style={{ fontSize: 15, margin: "0 0 4px" }}>The Weekend pot begins after the cut.</p>
+                <p style={{ fontSize: 12, color: theme.link, margin: 0 }}>Check back Saturday — everyone starts even.</p>
+              </div>
+            ) : rankedTeams.map((team, i) => (
               <div key={team.name} ref={el => cardRefs.current[team.name] = el}>
-                <TeamCard team={team} rank={i + 1} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => { skipReorderAnim.current = true; setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; }); }} coursePar={coursePar} isArchived={isArchived} theme={theme} />
+                <TeamCard team={team} rank={i + 1} potView={potMode} cutHappened={cutHappened} worstMadeCut={worstMadeCut} expanded={expandedTeams.current.has(team.name)} onToggle={() => toggleTeam(team.name)} avatarUrl={avatars[team.name]} chartColor={TEAM_COLORS[i % TEAM_COLORS.length]} expandedGolfers={expandedGolfers} onGolferToggle={(name) => { skipReorderAnim.current = true; setExpandedGolfers(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next; }); }} coursePar={coursePar} isArchived={isArchived} theme={theme} />
               </div>
             ))}
           </div>
