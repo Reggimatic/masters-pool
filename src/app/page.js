@@ -2127,7 +2127,7 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
           <InlineDropdown label={groupName} items={allGroups} currentId={group} onSelect={(id) => onSwitch(tournament, id)} color={theme.accent} align="right" caretSide="right" theme={theme} />
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: field.length > 0 && !isArchived ? "space-between" : "center", gap: 10, margin: "0 0 4px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, fontSize: "clamp(28px, 6vw, 48px)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 15, minWidth: 0, fontSize: "clamp(28px, 6vw, 48px)" }}>
             {tournamentLogo && <img src={tournamentLogo} alt="" style={{ height: "0.8em", width: "auto", flexShrink: 0 }} />}
             <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "1em", color: "#ffffff", margin: 0, fontWeight: 300, letterSpacing: 2, textTransform: "uppercase", whiteSpace: "nowrap" }}>Leader Board</h1>
           </div>
