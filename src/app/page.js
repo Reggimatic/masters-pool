@@ -1356,8 +1356,7 @@ const DEFAULT_THEME = {
   menuSelected: "#FCE300",
 };
 
-// Open Championship (navy + yellow). Shared by the Scottish test tournament
-// (styling stand-in) and the real Open Championship row once it's created.
+// Open Championship (navy + yellow).
 const OPEN_CHAMPIONSHIP_THEME = {
   headerBg: "#041E42",
   headerBorder: "#1D4E89",
@@ -1370,7 +1369,6 @@ const OPEN_CHAMPIONSHIP_THEME = {
 };
 
 const TOURNAMENT_THEMES = {
-  "scottish-open-2026-test": OPEN_CHAMPIONSHIP_THEME,
   "open-championship-2026": OPEN_CHAMPIONSHIP_THEME,
   "pga-championship-2026": {
     headerBg: "#001529",
