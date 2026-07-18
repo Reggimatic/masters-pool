@@ -1552,8 +1552,21 @@ function ScoreTrendChart({ teams, liveScores, cutHappened, worstMadeCut, allMade
   // Positioned halfway between the last locked checkpoint and the next one.
   // Uses the team card totals (weekendTotal in Weekend mode) so it matches the cards.
   const isComplete = plottableCount >= CHECKPOINTS.length;
+  // Between rounds the live totals equal the last locked checkpoint, so a LIVE
+  // point would just dangle into the next round's segment (e.g. R4 Front while
+  // everyone is done with R3). Only show it once some active golfer has played
+  // a hole beyond the holes covered by the locked checkpoints.
+  const scopeStartRound = weekend ? 3 : 1;
+  const lockedHoles = plottableCount * 9;
+  const anyPlayBeyondLocked = allGolferNames.some(name => {
+    const s = liveScores[name] || {};
+    if (s.withdrawn) return false;
+    if ((weekend || cutHappened) && s.missedCut) return false;
+    const played = (s.holeScores || []).reduce((sum, r) => sum + (r.round >= scopeStartRound ? (r.holes?.length || 0) : 0), 0);
+    return played > lockedHoles;
+  });
   let liveX = null;
-  if (!isComplete) {
+  if (!isComplete && anyPlayBeyondLocked) {
     const lastX = plottableCount > 0 ? CHECKPOINTS[plottableCount - 1].x : 0;
     const nextX = CHECKPOINTS[plottableCount]?.x ?? lastX + 1;
     liveX = (lastX + nextX) / 2;
