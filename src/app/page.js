@@ -189,7 +189,6 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped, onClick, 
       <span style={{ fontSize: 15, minWidth: 20, textAlign: "center", flexShrink: 0, lineHeight: 1 }}>{flag}</span>
       <span style={{ flex: 1, fontSize: 13, color: inactive ? "#8B8885" : isPenalty ? "#999" : isDropped ? "#8B8885" : "#63605E", fontStyle: (inactive || isPenalty) ? "italic" : "normal", letterSpacing: 0.2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isPenalty ? "Missed cut penalty" : golfer.name}
-        {inactive && !isPenalty && <span style={{ fontSize: 11, marginLeft: 6, color: "#8B8885" }}>{isWithdrawn ? "(WD)" : "(MC)"}</span>}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
         {!inactive && !isPenalty && golfer.today !== null && golfer.today !== undefined
@@ -202,13 +201,15 @@ function GolferRow({ golfer, isCut, isWithdrawn, isPenalty, isDropped, onClick, 
         {!inactive && !isPenalty ? (golfer.thru || "—") : ""}
       </span>
       <span style={{ fontSize: 13, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
-        {!inactive && <ScoreDisplay relative={golfer.relative} isScoring={!isDropped && !inactive && !isPenalty} />}
+        {inactive
+          ? <span style={{ color: "#8B8885", fontStyle: "italic" }}>{isWithdrawn ? "WD" : "MC"}</span>
+          : <ScoreDisplay relative={golfer.relative} isScoring={!isDropped && !isPenalty} />}
       </span>
     </div>
   );
 }
 
-function GolferRowHeader() {
+function GolferRowHeader({ scoreLabel = "SCORE" }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 6px 12px", borderBottom: "2px solid #1a472a" }}>
       <span style={{ fontSize: 12, color: "#888", minWidth: 34, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>POS</span>
@@ -216,7 +217,7 @@ function GolferRowHeader() {
       <span style={{ flex: 1, fontSize: 12, color: "#888", fontWeight: 600, letterSpacing: 1 }}>PLAYER</span>
       <span style={{ fontSize: 10, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>TODAY</span>
       <span style={{ fontSize: 10, color: "#888", minWidth: 28, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>THRU</span>
-      <span style={{ fontSize: 10, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>SCORE</span>
+      <span style={{ fontSize: 10, color: "#888", minWidth: 36, textAlign: "right", flexShrink: 0, fontWeight: 600, letterSpacing: 1 }}>{scoreLabel}</span>
     </div>
   );
 }
@@ -503,7 +504,7 @@ function TeamCard({ team, rank, potView = "overall", cutHappened, worstMadeCut, 
         <div style={{ overflow: "hidden" }}>
         <div style={{ padding: 10 }}>
           <div>
-            <GolferRowHeader />
+            <GolferRowHeader scoreLabel={isWeekend ? "WKEND" : "SCORE"} />
             {scoringGolfers.map(g => (
               <div key={g.name}>
                 <GolferRow golfer={g} isCut={false} isPenalty={false} isDropped={false} onClick={() => onGolferToggle?.(g.name)} isExpandable={!isArchived && (g.holeScores?.length > 0 || g.espnId)} isExpanded={expandedGolfers?.has(g.name)} />
