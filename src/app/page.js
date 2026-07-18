@@ -435,11 +435,13 @@ function TeamCard({ team, rank, potView = "overall", cutHappened, worstMadeCut, 
   let scoringGolfers = [], droppedGolfers = [], penaltySlots = 0;
 
   if (isWeekend) {
-    // Best 2 cut-makers by weekend score; no penalty slots (fewer than 2 = SOL).
-    const eligible = madeCut.filter(g => g.relative != null && !g.withdrawn);
-    const sorted = [...eligible].sort((a, b) => a.relative - b.relative);
+    // Best 2 cut-makers by weekend score; no penalty slots. DNQ means fewer
+    // than 2 cut-makers — a cut-maker who hasn't teed off in R3 yet counts
+    // as E, so a qualified team never shows DNQ on late tee times.
+    const eligible = madeCut.filter(g => !g.withdrawn);
+    const sorted = [...eligible].sort((a, b) => (a.relative ?? 0) - (b.relative ?? 0));
     scoringGolfers = sorted.slice(0, 2);
-    droppedGolfers = [...sorted.slice(2), ...madeCut.filter(g => g.relative == null || g.withdrawn), ...missedCut];
+    droppedGolfers = [...sorted.slice(2), ...madeCut.filter(g => g.withdrawn), ...missedCut];
   } else if (!cutHappened) {
     const eligible = viewGolfers.filter(g => !g.withdrawn);
     const withdrawn = viewGolfers.filter(g => g.withdrawn);
@@ -2071,12 +2073,13 @@ function Leaderboard({ tournament, group, tournamentName, tournamentLogo, cutLin
       const scoring = sorted.slice(0, 4);
       total = scoring.reduce((sum, g) => sum + (g.relative ?? 0), 0) + Math.max(0, 4 - scoring.length) * (worstMadeCut ?? 0);
     }
-    // Weekend pot: best 2 cut-makers by R3+R4. Fewer than 2 → SOL (null).
+    // Weekend pot: best 2 cut-makers by R3+R4. Fewer than 2 cut-makers → SOL
+    // (null). Not-yet-started weekend rounds count as E, matching TeamCard.
     const weekendEligible = withScores
-      .filter(g => !g.missedCut && !g.withdrawn && g.weekendScore != null)
-      .sort((a, b) => a.weekendScore - b.weekendScore);
+      .filter(g => !g.missedCut && !g.withdrawn)
+      .sort((a, b) => (a.weekendScore ?? 0) - (b.weekendScore ?? 0));
     const weekendBest2 = weekendEligible.slice(0, 2);
-    const weekendTotal = weekendBest2.length >= 2 ? weekendBest2.reduce((s, g) => s + g.weekendScore, 0) : null;
+    const weekendTotal = weekendBest2.length >= 2 ? weekendBest2.reduce((s, g) => s + (g.weekendScore ?? 0), 0) : null;
     return { ...team, golfers: withScores, total, weekendTotal };
   }).sort((a, b) => {
     if (potMode === "weekend") {
